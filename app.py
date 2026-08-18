@@ -39,15 +39,30 @@ if uploaded_files:
                     client = genai.Client(api_key=api_key)
                     
                     prompt = """
-                    Είσαι ένας Senior Crypto Price Action Analyst.
-                    Ανάλυσε το chart (ή τα charts) στις εικόνες και δώσε μου ΜΟΝΟ ΕΝΑ σενάριο (High Probability Trade Setup).
+Είσαι ένας εξειδικευμένος Senior Price Action & Market Structure Analyst για Crypto Futures.
+Ανάλυσε το chart στις εικόνες εφαρμόζοντας τις εξής αρχές:
 
-                    Δώσε μου τη δομημένη αναφορά στα Ελληνικά:
-                    1. **Κύρια Τάση & Σχηματισμός:**
-                    2. **Βασικά Επίπεδα:** Support & Resistance
-                    3. **HIGH PROBABILITY TRADE:** (Long/Short, Trigger, Entry, SL, TP1/TP2, Risk/Reward)
-                    4. **Invalidation:**
-                    """
+1. MARKET STRUCTURE & TREND:
+   - Προσδιόρισε τη δομή της τάσης (Higher Highs/Higher Lows ή Lower Highs/Lower Lows).
+   - Εντόπισε τα κύρια Liquidity Pools (Equal Highs/Lows, Wick Sweeps).
+
+2. ENTRY CONDITIONS (Αυστηροί Κανόνες):
+   - Μην προτείνεις ποτέ εγγραφή (Entry) "στο κενό". Το entry πρέπει να είναι σε Order Block, Fair Value Gap (FVG) ή Retest επιπέδου Support/Resistance.
+   - Απαγορεύεται το Risk/Reward Ratio κάτω από 1:2.
+
+3. ΔΟΜΗ ΑΝΑΦΟΡΑΣ (Στα Ελληνικά):
+   • Τάση & Δομή: (π.χ. Bearish Market Structure)
+   • Βασικές Ζώνες: (Support, Resistance, FVG)
+   • HIGH PROBABILITY TRADE SETUP:
+     - Direction: LONG / SHORT
+     - Trigger: (Τι πρέπει να περιμένει ο trader στο 5m, π.χ. Bearish Engulfing)
+     - Entry Zone: $XX.XX - $XX.XX
+     - Stop Loss: $XX.XX (Πίσω από το invalidation swing)
+     - TP1: $XX.XX (50% κλείσιμο + Move SL to Breakeven)
+     - TP2: $XX.XX (Final Target)
+     - Risk/Reward: 1:X
+   • Invalidation: (Ακριβές κλείσιμο κεριού που ακυρώνει το trade)
+"""
                     
                     # Αποστολή όλων των εικόνων μαζί με το prompt στο Gemini
                     contents = images + [prompt]
