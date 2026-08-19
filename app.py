@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 import json
@@ -9,49 +10,82 @@ from google.genai import types
 from PIL import Image
 from pydantic import BaseModel, Field
 
-st.set_page_config(page_title="Crypto Analyzer & Auto-Tracker", page_icon="📈", layout="wide")
-st.title("📈 Crypto Chart Analyzer & Auto-Tracker")
+st.set_page_config(page_title="Crypto Chart Analyzer & Live TradingView", page_icon="📈", layout="wide")
+st.title("📈 Crypto Chart Analyzer & Live Tracker")
 
 LOG_FILE = "trade_log.csv"
 
-# Αρχικοποίηση CSV αν δεν υπάρχει
+# Αρχικοποίηση CSV
 if not os.path.exists(LOG_FILE):
     df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_init.to_csv(LOG_FILE, index=False)
 
 api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else st.sidebar.text_input("Gemini API Key", type="password")
 
-# Pydantic Schema για Structured JSON Output
+# --- 1. TRADINGVIEW WIDGET SECTION ---
+st.subheader("📊 Live TradingView Chart")
+
+col_symbol, col_tf = st.columns([2, 1])
+with col_symbol:
+    selected_pair = st.text_input("Σύμβολο TradingView (π.χ. BYBIT:SOLUSDT, BINANCE:BNBUSDT):", value="BYBIT:SOLUSDT")
+with col_tf:
+    selected_tf = st.selectbox("Timeframe:", ["1", "5", "15", "60", "240", "D"], index=1)
+
+tradingview_html = f"""
+<div class="tradingview-widget-container" style="height:500px;width:100%">
+  <div id="tradingview_chart" style="height:500px;width:100%"></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+  <script type="text/javascript">
+  new TradingView.widget(
+  {{
+    "autosize": true,
+    "symbol": "{selected_pair}",
+    "interval": "{selected_tf}",
+    "timezone": "Europe/Athens",
+    "theme": "dark",
+    "style": "1",
+    "locale": "el",
+    "toolbar_bg": "#f1f3f6",
+    "enable_publishing": false,
+    "allow_symbol_change": true,
+    "container_id": "tradingview_chart"
+  }}
+  );
+  </script>
+</div>
+"""
+components.html(tradingview_html, height=520)
+
+st.divider()
+
+# Schema για Structured Output
 class TradeSetup(BaseModel):
-    pair: str = Field(description="Το ζεύγος σε μορφή π.χ. BTC/USDT, SOL/USDT, HYPE/USDT")
+    pair: str = Field(description="Το ζεύγος σε μορφή 'SYMBOL/USDT', π.χ. SOL/USDT, BNB/USDT")
     direction: str = Field(description="LONG ή SHORT")
-    entry: float = Field(description="Τιμή εισόδου ως αριθμός (float), π.χ. 59.55")
-    sl: float = Field(description="Τιμή Stop Loss ως αριθμός (float), π.χ. 59.85")
-    tp1: float = Field(description="Τιμή Take Profit 1 ως αριθμός (float), π.χ. 59.00")
-    tp2: float = Field(description="Τιμή Take Profit 2 ως αριθμός (float), π.χ. 58.30")
+    entry: float = Field(description="Τιμή εισόδου ως αριθμός (float)")
+    sl: float = Field(description="Τιμή Stop Loss ως αριθμός (float)")
+    tp1: float = Field(description="Τιμή Take Profit 1 ως αριθμός (float)")
+    tp2: float = Field(description="Τιμή Take Profit 2 ως αριθμός (float)")
     analysis_summary: str = Field(description="Σύντομη περιγραφή Price Action")
 
-# --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
+# --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ---
 def check_trade_status(row):
     status = str(row["Status"])
     if status in ["Win 🏆", "Loss ❌", "Canceled 🚫"]:
-        return status  # Αν έχει ήδη ολοκληρωθεί, μην το ξαναελέγχεις
+        return status
 
     pair = str(row["Pair"]).upper().strip()
     direction = str(row["Direction"]).upper().strip()
     
     try:
-        entry = float(row["Entry"])
         sl = float(row["SL"])
         tp1 = float(row["TP1"])
     except (ValueError, TypeError):
         return status
 
     try:
-        # Χρήση του Bybit API μέσω CCXT
         exchange = ccxt.bybit()
         ticker = exchange.fetch_ticker(pair)
-        current_price = ticker['last']
         high_price = ticker['high']
         low_price = ticker['low']
 
@@ -65,13 +99,10 @@ def check_trade_status(row):
                 return "Loss ❌"
             elif low_price <= tp1:
                 return "Win 🏆"
-
     except Exception:
-        # Αν αποτύχει η Bybit, δοκιμή με Binance
         try:
             exchange = ccxt.binance()
             ticker = exchange.fetch_ticker(pair)
-            current_price = ticker['last']
             high_price = ticker['high']
             low_price = ticker['low']
 
@@ -90,7 +121,8 @@ def check_trade_status(row):
 
     return "Pending ⏳"
 
-# --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
+# --- 2. UPLOAD & ΑΝΑΛΥΣΗ CHARTS ---
+st.subheader("📷 Ανάλυση Εικόνων Chart")
 uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True)
 
 if uploaded_files:
@@ -106,14 +138,14 @@ if uploaded_files:
         if not api_key:
             st.error("Δεν βρέθηκε API Key!")
         else:
-            with st.spinner("Γίνεται ανάλυση και εξαγωγή δεδομένων..."):
+            with st.spinner("Γίνεται ανάλυση..."):
                 try:
                     client = genai.Client(api_key=api_key)
                     
                     prompt = """
                     Είσαι ένας Senior Crypto Price Action Analyst.
                     Ανάλυσε το chart και βγάλε ένα High Probability Trade Setup.
-                    Συμπλήρωσε τα πεδία του JSON. Το pair να είναι σε μορφή 'SYMBOL/USDT' (π.χ. SOL/USDT).
+                    Συμπλήρωσε τα πεδία του JSON. Το pair να είναι σε μορφή 'SYMBOL/USDT'.
                     """
                     
                     response = client.models.generate_content(
@@ -128,7 +160,6 @@ if uploaded_files:
                     trade_data = json.loads(response.text)
                     st.success("Η ανάλυση ολοκληρώθηκε!")
                     
-                    # Προβολή
                     col1, col2, col3, col4 = st.columns(4)
                     col1.metric("Pair", trade_data.get("pair"))
                     col2.metric("Direction", trade_data.get("direction"))
@@ -141,7 +172,6 @@ if uploaded_files:
                     
                     st.info(trade_data.get("analysis_summary"))
                     
-                    # Καταγραφή
                     new_entry = {
                         "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "Pair": trade_data.get("pair"),
@@ -162,7 +192,7 @@ if uploaded_files:
                 except Exception as e:
                     st.error(f"Σφάλμα: {e}")
 
-# --- ΜΟΝΙΜΟ ΙΣΤΟΡΙΚΟ (LIVE TRADE TRACKER) ---
+# --- 3. TRADE LOG TRACKER ---
 st.divider()
 st.subheader("📜 Live Trade Log Tracker")
 
@@ -171,10 +201,10 @@ df_history = pd.read_csv(LOG_FILE)
 col_a, col_b = st.columns([1, 4])
 with col_a:
     if st.button("🔄 Ενημέρωση Live Status Trades"):
-        with st.spinner("Έλεγχος ζωντανών τιμών από την αγορά..."):
+        with st.spinner("Έλεγχος ζωντανών τιμών..."):
             df_history["Status"] = df_history.apply(check_trade_status, axis=1)
             df_history.to_csv(LOG_FILE, index=False)
-            st.success("Το ιστορικό ενημερώθηκε!")
+            st.success("Ενημερώθηκε!")
             st.rerun()
 
 st.dataframe(df_history, use_container_width=True)
