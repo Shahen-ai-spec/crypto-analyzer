@@ -175,7 +175,7 @@ if uploaded_files:
 """
                     
                     response = client.models.generate_content(
-                        model='gemini-1.5-flash',
+                        model='gemini-2.5-flash',  # <--- Αλλάξτε το εδώ
                         contents=images + [prompt],
                         config=types.GenerateContentConfig(
                             response_mime_type="application/json",
