@@ -155,10 +155,12 @@ if uploaded_files:
                     client = genai.Client(api_key=api_key)
                     
                     prompt = """
-                    Είσαι ένας Senior Crypto Price Action Analyst.
-                    Ανάλυσε το chart και βγάλε ένα High Probability Trade Setup.
-                    Συμπλήρωσε τα πεδία του JSON. Το pair να είναι αυστηρά σε μορφή 'SYMBOL/USDT' (π.χ. SOL/USDT, BNB/USDT).
-                    """
+Είσαι ένας Senior Crypto Price Action Analyst.
+Ανάλυσε το chart και εντόπισε τυχόν τεχνικούς δείκτες που εμφανίζονται (π.χ. RSI, MACD, Volume).
+1. Έλεγξε αν ο RSI δείχνει Overbought/Oversold περιοχές ή κάποια Απόκλιση (Divergence).
+2. Συνδύασε το Price Action με τους δείκτες για να βγάλεις ένα High Probability Trade Setup.
+3. Συμπλήρωσε αυστηρά όλα τα πεδία του JSON.
+"""
                     
                     response = client.models.generate_content(
                         model='gemini-3.6-flash',
