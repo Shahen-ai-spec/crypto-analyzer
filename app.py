@@ -86,6 +86,7 @@ st.divider()
 # --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
 def check_trade_status(row):
     status = str(row["Status"])
+    # Αν έχει ήδη κλείσει το trade, μην το ξαναελέγχεις
     if "Win" in status or "Loss" in status or "Canceled" in status:
         return status
 
@@ -99,41 +100,36 @@ def check_trade_status(row):
     except (ValueError, TypeError):
         return status
 
-    try:
-        exchange = ccxt.bybit()
-        ticker = exchange.fetch_ticker(pair)
-        high_price = ticker['high']
-        low_price = ticker['low']
-
-        if direction == "LONG":
-            if low_price <= sl:
-                return "Loss ❌"
-            elif high_price >= tp1:
-                return "Win 🏆"
-        elif direction == "SHORT":
-            if high_price >= sl:
-                return "Loss ❌"
-            elif low_price <= tp1:
-                return "Win 🏆"
-    except Exception:
+    # Δοκιμή με CCXT (Bybit & Binance)
+    for exchange_class in [ccxt.bybit, ccxt.binance]:
         try:
-            exchange = ccxt.binance()
-            ticker = exchange.fetch_ticker(pair)
-            high_price = ticker['high']
-            low_price = ticker['low']
+            exchange = exchange_class()
+            
+            # Αν είναι USDC, δοκιμάζουμε και με USDT αν αποτύχει
+            tickers_to_try = [pair, pair.replace("USDC", "USDT")]
+            
+            for symbol in tickers_to_try:
+                try:
+                    ticker = exchange.fetch_ticker(symbol)
+                    high_price = float(ticker['high'])
+                    low_price = float(ticker['low'])
+                    last_price = float(ticker['last'])
 
-            if direction == "LONG":
-                if low_price <= sl:
-                    return "Loss ❌"
-                elif high_price >= tp1:
-                    return "Win 🏆"
-            elif direction == "SHORT":
-                if high_price >= sl:
-                    return "Loss ❌"
-                elif low_price <= tp1:
-                    return "Win 🏆"
+                    if direction == "LONG":
+                        if low_price <= sl:
+                            return "Loss ❌"
+                        elif high_price >= tp1 or last_price >= tp1:
+                            return "Win 🏆"
+                    elif direction == "SHORT":
+                        if high_price >= sl:
+                            return "Loss ❌"
+                        elif low_price <= tp1 or last_price <= tp1:
+                            return "Win 🏆"
+                    break
+                except Exception:
+                    continue
         except Exception:
-            pass
+            continue
 
     return "Pending ⏳"
 
