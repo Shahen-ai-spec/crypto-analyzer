@@ -55,7 +55,7 @@ with col_tv1:
 with col_tv2:
     timeframe = st.selectbox("Timeframe:", ["1", "3", "5", "15", "60", "240", "D"], index=2)
 
-# TradingView Widget Embed
+# TradingView Widget Embed με προεπιλεγμένο RSI
 tv_widget_html = f"""
 <div class="tradingview-widget-container" style="height:500px;width:100%;">
   <div id="tradingview_widget" style="height:500px;width:100%;"></div>
@@ -72,13 +72,15 @@ tv_widget_html = f"""
     "toolbar_bg": "#f1f3f6",
     "enable_publishing": false,
     "hide_legend": false,
+    "studies": [
+      "STD;RSI"
+    ],
     "container_id": "tradingview_widget"
   }});
   </script>
 </div>
 """
 components.html(tv_widget_html, height=510)
-
 st.divider()
 
 # --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
