@@ -153,10 +153,10 @@ if uploaded_files:
             st.error("Δεν βρέθηκε API Key!")
         else:
             with st.spinner("Γίνεται ανάλυση και εξαγωγή δεδομένων..."):
-                try:
-                    client = genai.Client(api_key=api_key)
-                    
-                 prompt = """
+            try:
+                client = genai.Client(api_key=api_key)
+
+                prompt = """
 Είσαι ένας Senior Crypto Technical Analyst.
 Ανάλυσε το chart χρησιμοποιώντας Συνδυαστική Επιβεβαίωση (Confluence):
 
