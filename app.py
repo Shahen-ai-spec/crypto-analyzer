@@ -55,7 +55,7 @@ with col_tv1:
 with col_tv2:
     timeframe = st.selectbox("Timeframe:", ["1", "3", "5", "15", "60", "240", "D"], index=2)
 
-# TradingView Widget Embed με προεπιλεγμένο RSI
+# TradingView Widget Embed με προεπιλεγμένους δείκτες
 tv_widget_html = f"""
 <div class="tradingview-widget-container" style="height:500px;width:100%;">
   <div id="tradingview_widget" style="height:500px;width:100%;"></div>
@@ -73,10 +73,10 @@ tv_widget_html = f"""
     "enable_publishing": false,
     "hide_legend": false,
     "studies": [
-  "STD;RSI",
-  "STD;EMA",          # Exponential Moving Average
-  "STD;MACD"          # Moving Average Convergence Divergence
-]
+      "STD;RSI",
+      "STD;EMA",
+      "STD;MACD"
+    ],
     "container_id": "tradingview_widget"
   }});
   </script>
@@ -85,10 +85,9 @@ tv_widget_html = f"""
 components.html(tv_widget_html, height=510)
 st.divider()
 
-# --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
+# --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ (Ιστορικά Κεριά OHLCV) ---
 def check_trade_status(row):
     status = str(row["Status"])
-    # Αν έχει ήδη κλείσει το trade, μην το ξαναελέγχεις
     if "Win" in status or "Loss" in status or "Canceled" in status:
         return status
 
@@ -102,31 +101,38 @@ def check_trade_status(row):
     except (ValueError, TypeError):
         return status
 
-    # Δοκιμή με CCXT (Bybit & Binance)
+    try:
+        trade_date = datetime.strptime(str(row["Date"]), "%Y-%m-%d %H:%M")
+        since_timestamp = int(trade_date.timestamp() * 1000)
+    except Exception:
+        since_timestamp = None
+
     for exchange_class in [ccxt.bybit, ccxt.binance]:
         try:
             exchange = exchange_class()
-            
-            # Αν είναι USDC, δοκιμάζουμε και με USDT αν αποτύχει
-            tickers_to_try = [pair, pair.replace("USDC", "USDT")]
+            tickers_to_try = [pair, pair.replace("USDC", "USDT"), pair.replace("USDT", "USDC")]
             
             for symbol in tickers_to_try:
                 try:
-                    ticker = exchange.fetch_ticker(symbol)
-                    high_price = float(ticker['high'])
-                    low_price = float(ticker['low'])
-                    last_price = float(ticker['last'])
+                    if since_timestamp:
+                        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='5m', since=since_timestamp, limit=500)
+                    else:
+                        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=200)
 
-                    if direction == "LONG":
-                        if low_price <= sl:
-                            return "Loss ❌"
-                        elif high_price >= tp1 or last_price >= tp1:
-                            return "Win 🏆"
-                    elif direction == "SHORT":
-                        if high_price >= sl:
-                            return "Loss ❌"
-                        elif low_price <= tp1 or last_price <= tp1:
-                            return "Win 🏆"
+                    for candle in ohlcv:
+                        high_price = candle[2]
+                        low_price = candle[3]
+
+                        if direction == "LONG":
+                            if low_price <= sl:
+                                return "Loss ❌"
+                            elif high_price >= tp1:
+                                return "Win 🏆"
+                        elif direction == "SHORT":
+                            if high_price >= sl:
+                                return "Loss ❌"
+                            elif low_price <= tp1:
+                                return "Win 🏆"
                     break
                 except Exception:
                     continue
@@ -148,16 +154,15 @@ if uploaded_files:
         with cols[idx]:
             st.image(img, caption=f"Εικόνα {idx+1}", use_container_width=True)
 
-    if st.button("🚀 Ανάλυση & Αυτόματη Αποθήκευση")
-    
+    if st.button("🚀 Ανάλυση & Αυτόματη Αποθήκευση"):
         if not api_key:
-           st.error("Δεν βρέθηκε API Key!")
+            st.error("Δεν βρέθηκε API Key!")
         else:
-        with st.spinner("Γίνεται ανάλυση και εξαγωγή δεδομένων..."):
-            try:
-                client = genai.Client(api_key=api_key)
+            with st.spinner("Γίνεται ανάλυση και εξαγωγή δεδομένων..."):
+                try:
+                    client = genai.Client(api_key=api_key)
 
-                prompt = """
+                    prompt = """
 Είσαι ένας Senior Crypto Technical Analyst.
 Ανάλυσε το chart χρησιμοποιώντας Συνδυαστική Επιβεβαίωση (Confluence):
 
@@ -170,7 +175,7 @@ if uploaded_files:
 """
                     
                     response = client.models.generate_content(
-                        model='gemini-3.6-flash',
+                        model='gemini-1.5-flash',
                         contents=images + [prompt],
                         config=types.GenerateContentConfig(
                             response_mime_type="application/json",
