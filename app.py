@@ -157,11 +157,16 @@ if uploaded_files:
                     client = genai.Client(api_key=api_key)
                     
                     prompt = """
-Είσαι ένας Senior Crypto Price Action Analyst.
-Ανάλυσε το chart και εντόπισε τυχόν τεχνικούς δείκτες που εμφανίζονται (π.χ. RSI, MACD, Volume).
-1. Έλεγξε αν ο RSI δείχνει Overbought/Oversold περιοχές ή κάποια Απόκλιση (Divergence).
-2. Συνδύασε το Price Action με τους δείκτες για να βγάλεις ένα High Probability Trade Setup.
-3. Συμπλήρωσε αυστηρά όλα τα πεδία του JSON.
+prompt = """
+Είσαι ένας Senior Crypto Technical Analyst.
+Ανάλυσε το chart χρησιμοποιώντας Συνδυαστική Επιβεβαίωση (Confluence):
+
+1. Trend (EMA): Έλεγξε τη σχέση της τιμής με τους Moving Averages. Μην δίνεις σήματα κόντρα στην τάση.
+2. Momentum (RSI & MACD): Έλεγξε αν υπάρχει Bullish/Bearish Divergence ή Crossover.
+3. Key Levels: Εντόπισε Support/Resistance ή Order Blocks για τα Entry, SL και TP.
+4. Confluence Score: Δώσε σήμα ΜΟΝΟ αν τουλάχιστον 2 από τα 3 εργαλεία συμφωνούν προς την ίδια κατεύθυνση.
+
+Συμπλήρωσε αυστηρά τη δομή JSON.
 """
                     
                     response = client.models.generate_content(
