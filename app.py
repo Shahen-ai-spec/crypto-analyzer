@@ -156,8 +156,7 @@ if uploaded_files:
                 try:
                     client = genai.Client(api_key=api_key)
                     
-                    prompt = """
-prompt = """
+                 prompt = """
 Είσαι ένας Senior Crypto Technical Analyst.
 Ανάλυσε το chart χρησιμοποιώντας Συνδυαστική Επιβεβαίωση (Confluence):
 
