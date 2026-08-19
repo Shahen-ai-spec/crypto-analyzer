@@ -167,7 +167,7 @@ prompt = """
 4. Confluence Score: Δώσε σήμα ΜΟΝΟ αν τουλάχιστον 2 από τα 3 εργαλεία συμφωνούν προς την ίδια κατεύθυνση.
 
 Συμπλήρωσε αυστηρά τη δομή JSON.
-  """
+"""
                     
                     response = client.models.generate_content(
                         model='gemini-3.6-flash',
