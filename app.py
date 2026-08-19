@@ -24,12 +24,14 @@ api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets els
 
 # Pydantic Schema για Structured JSON Output
 class TradeSetup(BaseModel):
-    pair: str = Field(description="Το ζεύγος σε μορφή 'SYMBOL/USDT', π.χ. SOL/USDT, BNB/USDT")
+    pair: str = Field(description="Το ζεύγος, π.χ. SOL/USDT")
     direction: str = Field(description="LONG ή SHORT")
-    entry: float = Field(description="Τιμή εισόδου ως αριθμός (float)")
-    sl: float = Field(description="Τιμή Stop Loss ως αριθμός (float)")
-    tp1: float = Field(description="Τιμή Take Profit 1 ως αριθμός (float)")
-    tp2: float = Field(description="Τιμή Take Profit 2 ως αριθμός (float)")
+    entry: float = Field(description="Τιμή εισόδου")
+    sl: float = Field(description="Τιμή Stop Loss")
+    tp1: float = Field(description="Τιμή Take Profit 1")
+    tp2: float = Field(description="Τιμή Take Profit 2")
+    rsi_value: str = Field(description="Η τιμή του RSI αν υπάρχει στο chart (π.χ. '68 - Overbought' ή '32 - Oversold' ή 'N/A')")
+    confluence_factors: str = Field(description="Παράγοντες επιβεβαίωσης, π.χ. RSI Bearish Divergence, Key Support Level")
     analysis_summary: str = Field(description="Σύντομη περιγραφή Price Action")
 
 # --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
