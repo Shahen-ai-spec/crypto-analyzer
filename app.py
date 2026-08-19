@@ -73,8 +73,10 @@ tv_widget_html = f"""
     "enable_publishing": false,
     "hide_legend": false,
     "studies": [
-      "STD;RSI"
-    ],
+  "STD;RSI",
+  "STD;EMA",          # Exponential Moving Average
+  "STD;MACD"          # Moving Average Convergence Divergence
+]
     "container_id": "tradingview_widget"
   }});
   </script>
