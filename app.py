@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 from datetime import datetime
 from google import genai
 from google.genai import types
-from PIL import Image
+from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
 
 st.set_page_config(page_title="Crypto Analyzer & Live Tracker", page_icon="📈", layout="wide")
@@ -164,11 +164,17 @@ st.subheader("📷 Ανάλυση Εικόνων Chart")
 uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True)
 
 if uploaded_files:
-    images = []
+    processed_images = []
     cols = st.columns(len(uploaded_files))
+    
     for idx, uploaded_file in enumerate(uploaded_files):
         img = Image.open(uploaded_file).convert("RGB")
-        images.append(img)
+        
+        # Προεπεξεργασία εικόνας για καλύτερο OCR / ανάγνωση κειμένου
+        enhancer = ImageEnhance.Contrast(img)
+        enhanced_img = enhancer.enhance(1.3)  # Αύξηση contrast
+        
+        processed_images.append(enhanced_img)
         with cols[idx]:
             st.image(img, caption=f"Εικόνα {idx+1}", use_container_width=True)
 
@@ -176,32 +182,32 @@ if uploaded_files:
         if not api_key:
             st.error("Δεν βρέθηκε API Key!")
         else:
-            with st.spinner("Γίνεται ανάλυση και εξαγωγή δεδομένων..."):
+            with st.spinner("Γίνεται ανάλυση με το Gemini Pro..."):
                 try:
                     client = genai.Client(api_key=api_key)
 
                     prompt = """
-Είσαι ένας αντικειμενικός και ακριβής Technical Analyst.
-Εξέτασε την εικόνα και εντόπισε αυστηρά τα εξής:
+Είσαι ένας εξαιρετικά ακριβής Technical Analyst.
+Διάβασε προσεκτικά τα κείμενα και τους αριθμούς στην εικόνα:
 
-1. **Pair**: Το όνομα του ζεύγους (π.χ. SOL/USDT) όπως εμφανίζεται πάνω αριστερά.
-2. **Direction**: "LONG" αν η τάση είναι ανοδική / πράσινο κουτί, ή "SHORT" αν είναι καθοδική / κόκκινο κουτί.
+1. **Pair**: Το ζεύγος (π.χ. SOL/USDT) πάνω αριστερά.
+2. **Direction**: "LONG" αν η τάση/κουτί είναι πράσινο, ή "SHORT" αν είναι κόκκινο.
 3. **Entry, SL, TP1, TP2**: 
-   - Αν υπάρχει το σχεδιαστικό εργαλείο Long/Short Position του TradingView, διάβασε ΑΚΡΙΒΩΣ τους αριθμούς που αναγράφονται πάνω του.
-   - Αν δεν υπάρχει, χρησιμοποίησε τις τιμές από τον δεξιό άξονα τιμών.
-4. **RSI**: Την ακριβή τιμή του RSI αν υπάρχει.
-5. **Analysis**: Μία σύντομη πρόταση για το Price Action.
+   - Κοίταξε το εργαλείο Long/Short Position στο chart ή τον δεξιό άξονα τιμών.
+   - Ανάγνωσε ΑΚΡΙΒΩΣ τους αριθμούς.
+4. **RSI**: Την τιμή του RSI αν υπάρχει.
+5. **Analysis**: Σύντομη τεχνική σύνοψη.
 
-Να είσαι 100% ακριβής με τους αριθμούς της εικόνας χωρίς να μαντεύεις.
+Μην αυτοσχεδιάζεις, διάβασε μόνο τους αριθμούς που βλέπεις.
 """
 
                     response = None
                     for attempt in range(3):
                         try:
-                            # Ρύθμιση temperature=0.0 για σταθερά/ deterministic αποτελέσματα
+                            # Χρήση gemini-2.5-pro για πολύ καλύτερη αναγνώριση εικόνας (Vision OCR)
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash',
-                                contents=images + [prompt],
+                                model='gemini-2.5-pro',
+                                contents=processed_images + [prompt],
                                 config=types.GenerateContentConfig(
                                     temperature=0.0,
                                     seed=42,
