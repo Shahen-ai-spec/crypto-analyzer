@@ -26,19 +26,19 @@ api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets els
 
 # Pydantic Schema
 class TradeSetup(BaseModel):
-    pair: str = Field(description="Το ζεύγος, π.χ. SOL/USDT")
+    pair: str = Field(description="Το ζεύγος, π.χ. SUI/USDT ή SOL/USDT")
     direction: str = Field(description="LONG ή SHORT")
     entry: str = Field(description="Τιμή εισόδου")
     sl: str = Field(description="Τιμή Stop Loss")
     tp1: str = Field(description="Τιμή Take Profit 1")
     tp2: str = Field(description="Τιμή Take Profit 2")
-    rsi_value: str = Field(description="Τιμή RSI αν υπάρχει")
+    rsi_value: str = Field(description="Τιμή RSI αν εμφανίζεται")
     analysis_summary: str = Field(description="Σύντομη περιγραφή Technical Analysis")
 
 # --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
 st.subheader("📊 Live TradingView Chart")
 
-default_symbol = "BYBIT:SOLUSDT"
+default_symbol = "BYBIT:SUIUSDT"
 if os.path.exists(LOG_FILE):
     try:
         df_temp = pd.read_csv(LOG_FILE)
@@ -51,9 +51,9 @@ if os.path.exists(LOG_FILE):
 
 col_tv1, col_tv2 = st.columns([3, 1])
 with col_tv1:
-    tv_symbol = st.text_input("Σύμβολο TradingView:", value=default_symbol)
+    tv_symbol = st.text_input("Σύμβολο TradingView:", value=default_symbol, key="tv_symbol_input")
 with col_tv2:
-    timeframe = st.selectbox("Timeframe:", ["1", "3", "5", "15", "60", "240", "D"], index=2)
+    timeframe = st.selectbox("Timeframe:", ["1", "3", "5", "15", "60", "240", "D"], index=2, key="tv_tf_select")
 
 tv_widget_html = f"""
 <div class="tradingview-widget-container" style="height:500px;width:100%;">
@@ -161,7 +161,7 @@ def check_trade_status(row):
 
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
-uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="chart_uploader")
 
 if uploaded_files:
     processed_images = []
@@ -170,41 +170,40 @@ if uploaded_files:
     for idx, uploaded_file in enumerate(uploaded_files):
         img = Image.open(uploaded_file).convert("RGB")
         
-        # Προεπεξεργασία εικόνας για καλύτερο OCR / ανάγνωση κειμένου
+        # Αύξηση Contrast για καθαρότερη ανάγνωση αριθμών
         enhancer = ImageEnhance.Contrast(img)
-        enhanced_img = enhancer.enhance(1.3)  # Αύξηση contrast
+        enhanced_img = enhancer.enhance(1.2)
         
         processed_images.append(enhanced_img)
         with cols[idx]:
             st.image(img, caption=f"Εικόνα {idx+1}", use_container_width=True)
 
-        if st.button("🚀 Ανάλυση & Αυτόματη Αποθήκευση", key="analyze_btn"):
-         if not api_key:
+    if st.button("🚀 Έναρξη Ανάλυσης Chart", key="analyze_btn_main"):
+        if not api_key:
             st.error("Δεν βρέθηκε API Key!")
         else:
-            with st.spinner("Γίνεται ανάλυση με το Gemini 3.1 Pro..."):
+            with st.spinner("Γίνεται ανάλυση εικόνας με το Gemini 3.1 Pro..."):
                 try:
                     client = genai.Client(api_key=api_key)
 
                     prompt = """
 Είσαι ένας εξαιρετικά ακριβής Technical Analyst.
-Διάβασε προσεκτικά τα κείμενα και τους αριθμούς στην εικόνα:
+Εστίασε ΜΟΝΟ στο γράφημα (chart) και αγνόησε τα μενού της εφαρμογής:
 
-1. **Pair**: Το ζεύγος (π.χ. SUI/USDT) πάνω αριστερά.
-2. **Direction**: "LONG" αν η τάση/κουτί είναι πράσινο, ή "SHORT" αν είναι κόκκινο.
-3. **Entry, SL, TP1, TP2**: 
-   - Κοίταξε το εργαλείο Long/Short Position στο chart ή τον δεξιό άξονα τιμών.
-   - Ανάγνωσε ΑΚΡΙΒΩΣ τους αριθμούς.
-4. **RSI**: Την τιμή του RSI αν υπάρχει.
-5. **Analysis**: Σύντομη τεχνική σύνοψη.
+1. **Pair**: Εντόπισε το όνομα του ζεύγους (π.χ. SUI/USDT, SOL/USDT, BTC/USDT).
+2. **Direction**: "LONG" (αν είναι ανοδικό / πράσινο) ή "SHORT" (αν είναι καθοδικό / κόκκινο).
+3. **Entry**: Η τρέχουσα τιμή ή η τιμή εισόδου στο γράφημα.
+4. **SL**: Η τιμή Stop Loss (κόκκινο επίπεδο / swing low/high).
+5. **TP1 & TP2**: Τιμές Take Profit.
+6. **RSI**: Η τιμή του RSI αν εμφανίζεται κάτω στο chart.
+7. **Analysis**: Σύντομη αιτιολόγηση του trade.
 
-Μην αυτοσχεδιάζεις, διάβασε μόνο τους αριθμούς που βλέπεις.
+Δώσε ΑΚΡΙΒΕΙΣ αριθμούς όπως αναγράφονται στον άξονα τιμών.
 """
 
                     response = None
                     for attempt in range(3):
                         try:
-                            # Ενημερωμένο μοντέλο σύμφωνα με το API error
                             response = client.models.generate_content(
                                 model='gemini-3.1-pro-preview',
                                 contents=processed_images + [prompt],
@@ -223,53 +222,61 @@ if uploaded_files:
                             else:
                                 raise e
 
-                    trade_data = json.loads(response.text)
-                    st.success("Η ανάλυση ολοκληρώθηκε!")
-
-                    def parse_float(val):
-                        try:
-                            cleaned = re.sub(r'[^\d.]', '', str(val))
-                            return float(cleaned) if cleaned else 0.0
-                        except Exception:
-                            return 0.0
-
-                    entry_val = parse_float(trade_data.get("entry"))
-                    sl_val = parse_float(trade_data.get("sl"))
-                    tp1_val = parse_float(trade_data.get("tp1"))
-                    tp2_val = parse_float(trade_data.get("tp2"))
-
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("Pair", trade_data.get("pair"))
-                    col2.metric("Direction", trade_data.get("direction"))
-                    col3.metric("Entry", entry_val)
-                    col4.metric("Stop Loss", sl_val)
-
-                    col5, col6 = st.columns(2)
-                    col5.metric("Take Profit 1", tp1_val)
-                    col6.metric("Take Profit 2", tp2_val)
-
-                    st.info(f"**RSI:** {trade_data.get('rsi_value')}\n\n**Ανάλυση:** {trade_data.get('analysis_summary')}")
-
-                    new_entry = {
-                        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "Pair": trade_data.get("pair"),
-                        "Direction": trade_data.get("direction"),
-                        "Entry": entry_val,
-                        "SL": sl_val,
-                        "TP1": tp1_val,
-                        "TP2": tp2_val,
-                        "Status": "Pending ⏳",
-                        "Analysis": trade_data.get("analysis_summary")
-                    }
-
-                    df_log = pd.read_csv(LOG_FILE)
-                    df_log = pd.concat([pd.DataFrame([new_entry]), df_log], ignore_index=True)
-                    df_log.to_csv(LOG_FILE, index=False)
-                    st.toast("Το trade αποθηκεύτηκε!")
-                    st.rerun()
+                    st.session_state["parsed_trade"] = json.loads(response.text)
+                    st.success("Η ανάλυση ολοκληρώθηκε! Επιβεβαίωσε τα στοιχεία παρακάτω.")
 
                 except Exception as e:
-                    st.error(f"Σφάλμα: {e}")
+                    st.error(f"Σφάλμα κατά την ανάλυση: {e}")
+
+# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
+if "parsed_trade" in st.session_state:
+    trade_data = st.session_state["parsed_trade"]
+    
+    st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
+    
+    def clean_val(val):
+        try:
+            match = re.search(r'\d+\.?\d*', str(val))
+            return float(match.group()) if match else 0.0
+        except Exception:
+            return 0.0
+
+    with st.form("confirm_trade_form"):
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            f_pair = st.text_input("Pair", value=trade_data.get("pair", "SUI/USDT"))
+            f_dir = st.selectbox("Direction", ["LONG", "SHORT"], index=0 if str(trade_data.get("direction")).upper() == "LONG" else 1)
+            f_entry = st.number_input("Entry Price", value=clean_val(trade_data.get("entry")), format="%.4f")
+            f_sl = st.number_input("Stop Loss (SL)", value=clean_val(trade_data.get("sl")), format="%.4f")
+        
+        with col_f2:
+            f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
+            f_tp2 = st.number_input("Take Profit 2 (TP2)", value=clean_val(trade_data.get("tp2")), format="%.4f")
+            f_rsi = st.text_input("RSI Value", value=str(trade_data.get("rsi_value", "N/A")))
+            f_analysis = st.text_area("Analysis Summary", value=trade_data.get("analysis_summary", ""))
+
+        submit_save = st.form_submit_button("💾 Αποθήκευση στο Trade Log")
+        
+        if submit_save:
+            new_entry = {
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "Pair": f_pair,
+                "Direction": f_dir,
+                "Entry": f_entry,
+                "SL": f_sl,
+                "TP1": f_tp1,
+                "TP2": f_tp2,
+                "Status": "Pending ⏳",
+                "Analysis": f_analysis
+            }
+
+            df_log = pd.read_csv(LOG_FILE)
+            df_log = pd.concat([pd.DataFrame([new_entry]), df_log], ignore_index=True)
+            df_log.to_csv(LOG_FILE, index=False)
+            
+            del st.session_state["parsed_trade"]
+            st.toast("Το trade αποθηκεύτηκε επιτυχώς!")
+            st.rerun()
 
 # --- LIVE TRADE TRACKER ---
 st.divider()
@@ -279,7 +286,7 @@ df_history = pd.read_csv(LOG_FILE)
 
 col_a, col_b = st.columns([1, 4])
 with col_a:
-    if st.button("🔄 Ενημέρωση Live Status Trades"):
+    if st.button("🔄 Ενημέρωση Live Status Trades", key="update_status_btn"):
         with st.spinner("Έλεγχος ζωντανών τιμών από την αγορά..."):
             df_history["Status"] = df_history.apply(check_trade_status, axis=1)
             df_history.to_csv(LOG_FILE, index=False)
@@ -288,7 +295,7 @@ with col_a:
 
 st.dataframe(df_history, use_container_width=True)
 
-if st.button("🗑️ Καθαρισμός Ιστορικού"):
+if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_btn"):
     df_empty = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_empty.to_csv(LOG_FILE, index=False)
     st.rerun()
