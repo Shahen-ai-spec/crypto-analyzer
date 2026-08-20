@@ -314,25 +314,19 @@ if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_b
 st.markdown("---")
 st.subheader("⚖️ Υπολογισμός Ρίσκου & Position Size")
 
-# 1. Βάζεις εσύ το κεφάλαιο και το ρίσκο που θέλεις
-col_acc1, col_acc2 = st.columns(2)
-with col_acc1:
-   # --- ΑΥΤΟΜΑΤΟΣ ΥΠΟΛΟΓΙΣΜΟΣ ΡΙΣΚΟΥ & POSITION SIZE (ΣΤΟ ΚΑΤΩ ΜΕΡΟΣ) ---
-st.markdown("---")
-st.subheader("⚖️ Υπολογισμός Ρίσκου & Position Size")
-
-# 1. Βάζεις εσύ το κεφάλαιο και το ρίσκο που θέλεις
+# 1. Inputs για Κεφάλαιο & Ρίσκο
 col_acc1, col_acc2 = st.columns(2)
 with col_acc1:
     account_balance = st.number_input("Συνολικό Κεφάλαιο ($)", value=1000.0, step=100.0)
 with col_acc2:
     risk_percentage = st.number_input("Ρίσκο ανά Trade (%)", value=1.0, step=0.5)
 
-# 2. Παίρνουμε ΑΥΤΟΜΑΤΑ τις τιμές που έβγαλε το AI από τη φόρμα
+# 2. Τραβάμε τις τιμές αυτόματα από το session state
 try:
-    e_val = float(str(f_entry).replace(",", "."))
-    s_val = float(str(f_sl).replace(",", "."))
-    t_val = float(str(f_tp1).replace(",", "."))
+    parsed = st.session_state.get("parsed_trade", {})
+    e_val = float(str(parsed.get("entry", 0)).replace(",", "."))
+    s_val = float(str(parsed.get("sl", 0)).replace(",", "."))
+    t_val = float(str(parsed.get("tp1", 0)).replace(",", "."))
 except (ValueError, TypeError):
     e_val, s_val, t_val = 0.0, 0.0, 0.0
 
@@ -350,11 +344,6 @@ if e_val > 0 and s_val > 0 and e_val != s_val:
     st.markdown("### 📊 Αποτελέσματα")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Μέγιστη Χασούρα", f"${risk_amount_usd:.2f}")
-    c2.metric("Position Size ($)", f"${position_size_usd:.2f}")
-    c3.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
-    c4.metric("Risk/Reward (TP1)", f"1 : {rrr:.2f}")
-else:
-    st.info("💡 Μόλις ολοκληρωθεί η ανάλυση από το AI και συμπληρωθούν το Entry & Stop Loss, θα εμφανιστούν εδώ οι υπολογισμοί.")
     c2.metric("Position Size ($)", f"${position_size_usd:.2f}")
     c3.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
     c4.metric("Risk/Reward (TP1)", f"1 : {rrr:.2f}")
