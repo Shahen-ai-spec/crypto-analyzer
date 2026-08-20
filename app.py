@@ -32,42 +32,41 @@ with col_acc1:
 with col_acc2:
     risk_percentage = st.number_input("Ρίσκο ανά Trade (%)", value=1.0, step=0.5)
 
-# Παίρνουμε τις τιμές από το AI analysis
-# Αντικατάστησε τις γραμμές 36-38 με αυτό:
+# Τραβάμε τις τιμές από το AI αν υπάρχουν
 try:
-    raw_entry = st.session_state.get("parsed_trade", {}).get("entry", "0")
-    raw_sl = st.session_state.get("parsed_trade", {}).get("sl", "0")
-    raw_tp1 = st.session_state.get("parsed_trade", {}).get("tp1", "0")
+    parsed = st.session_state.get("parsed_trade", {})
+    def_entry = float(str(parsed.get("entry", 0)).replace(",", "."))
+    def_sl = float(str(parsed.get("sl", 0)).replace(",", "."))
+    def_tp1 = float(str(parsed.get("tp1", 0)).replace(",", "."))
+except:
+    def_entry, def_sl, def_tp1 = 0.0, 0.0, 0.0
 
-    entry_val = float(str(raw_entry).replace(",", "."))
-    sl_val = float(str(raw_sl).replace(",", "."))
-    tp1_val = float(str(raw_tp1).replace(",", "."))
-except (ValueError, TypeError):
-    entry_val, sl_val, tp1_val = 0.0, 0.0, 0.0
+# Inputs για Entry / SL / TP
+c_in1, c_in2, c_in3 = st.columns(3)
+with c_in1:
+    entry_val = st.number_input("Entry Price ($)", value=def_entry, format="%.4f")
+with c_in2:
+    sl_val = st.number_input("Stop Loss ($)", value=def_sl, format="%.4f")
+with c_in3:
+    tp1_val = st.number_input("Take Profit 1 ($)", value=def_tp1, format="%.4f")
 
-if entry_val > 0 and sl_val > 0:
-    # 1. Υπολογισμός Ρίσκου σε $
+# Υπολογισμός
+if entry_val > 0 and sl_val > 0 and entry_val != sl_val:
     risk_amount = account_balance * (risk_percentage / 100.0)
-    
-    # 2. Υπολογισμός Απόστασης SL (%)
     price_risk_per_unit = abs(entry_val - sl_val)
-    risk_pct_per_unit = (price_risk_per_unit / entry_val) * 100
     
-    # 3. Υπολογισμός Position Size
-    position_size_units = risk_amount / price_risk_per_unit if price_risk_per_unit > 0 else 0
+    position_size_units = risk_amount / price_risk_per_unit
     position_size_usd = position_size_units * entry_val
     
-    # 4. Υπολογισμός Risk to Reward (RRR) για TP1
-    reward_per_unit = abs(tp1_val - entry_val)
+    reward_per_unit = abs(tp1_val - entry_val) if tp1_val > 0 else 0
     rrr = reward_per_unit / price_risk_per_unit if price_risk_per_unit > 0 else 0
 
-    # Εμφάνιση Αποτελεσμάτων σε Cards
+    st.markdown("### 📊 Αποτελέσματα")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Μέγιστη Χασούρα ($)", f"${risk_amount:.2f}")
+    c1.metric("Μέγιστη Χασούρα", f"${risk_amount:.2f}")
     c2.metric("Position Size ($)", f"${position_size_usd:.2f}")
     c3.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
     c4.metric("Risk/Reward (TP1)", f"1 : {rrr:.2f}")
-
 api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else st.sidebar.text_input("Gemini API Key", type="password")
 
 # Pydantic Schema
