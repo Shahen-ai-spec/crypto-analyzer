@@ -178,11 +178,11 @@ if uploaded_files:
         with cols[idx]:
             st.image(img, caption=f"Εικόνα {idx+1}", use_container_width=True)
 
-    if st.button("🚀 Ανάλυση & Αυτόματη Αποθήκευση"):
+   if st.button("🚀 Ανάλυση & Αυτόματη Αποθήκευση"):
         if not api_key:
             st.error("Δεν βρέθηκε API Key!")
         else:
-            with st.spinner("Γίνεται ανάλυση με το Gemini Pro..."):
+            with st.spinner("Γίνεται ανάλυση με το Gemini 3.1 Pro..."):
                 try:
                     client = genai.Client(api_key=api_key)
 
@@ -190,7 +190,7 @@ if uploaded_files:
 Είσαι ένας εξαιρετικά ακριβής Technical Analyst.
 Διάβασε προσεκτικά τα κείμενα και τους αριθμούς στην εικόνα:
 
-1. **Pair**: Το ζεύγος (π.χ. SOL/USDT) πάνω αριστερά.
+1. **Pair**: Το ζεύγος (π.χ. SUI/USDT) πάνω αριστερά.
 2. **Direction**: "LONG" αν η τάση/κουτί είναι πράσινο, ή "SHORT" αν είναι κόκκινο.
 3. **Entry, SL, TP1, TP2**: 
    - Κοίταξε το εργαλείο Long/Short Position στο chart ή τον δεξιό άξονα τιμών.
@@ -204,9 +204,9 @@ if uploaded_files:
                     response = None
                     for attempt in range(3):
                         try:
-                            # Χρήση gemini-2.5-pro για πολύ καλύτερη αναγνώριση εικόνας (Vision OCR)
+                            # Ενημερωμένο μοντέλο σύμφωνα με το API error
                             response = client.models.generate_content(
-                                model='gemini-2.5-pro',
+                                model='gemini-3.1-pro-preview',
                                 contents=processed_images + [prompt],
                                 config=types.GenerateContentConfig(
                                     temperature=0.0,
