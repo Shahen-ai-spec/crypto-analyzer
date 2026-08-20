@@ -33,9 +33,17 @@ with col_acc2:
     risk_percentage = st.number_input("Ρίσκο ανά Trade (%)", value=1.0, step=0.5)
 
 # Παίρνουμε τις τιμές από το AI analysis
-entry_val = st.session_state.get("parsed_trade", {}).get("entry", 0.0)
-sl_val = st.session_state.get("parsed_trade", {}).get("sl", 0.0)
-tp1_val = st.session_state.get("parsed_trade", {}).get("tp1", 0.0)
+# Αντικατάστησε τις γραμμές 36-38 με αυτό:
+try:
+    raw_entry = st.session_state.get("parsed_trade", {}).get("entry", "0")
+    raw_sl = st.session_state.get("parsed_trade", {}).get("sl", "0")
+    raw_tp1 = st.session_state.get("parsed_trade", {}).get("tp1", "0")
+
+    entry_val = float(str(raw_entry).replace(",", "."))
+    sl_val = float(str(raw_sl).replace(",", "."))
+    tp1_val = float(str(raw_tp1).replace(",", "."))
+except (ValueError, TypeError):
+    entry_val, sl_val, tp1_val = 0.0, 0.0, 0.0
 
 if entry_val > 0 and sl_val > 0:
     # 1. Υπολογισμός Ρίσκου σε $
