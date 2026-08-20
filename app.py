@@ -21,6 +21,44 @@ LOG_FILE = "trade_log.csv"
 if not os.path.exists(LOG_FILE):
     df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_init.to_csv(LOG_FILE, index=False)
+    
+    # --- RISK MANAGEMENT CALCULATOR ---
+st.markdown("---")
+st.subheader("⚖️ Υπολογισμός Ρίσκου & Position Size")
+
+col_acc1, col_acc2 = st.columns(2)
+with col_acc1:
+    account_balance = st.number_input("Συνολικό Κεφάλαιο ($)", value=1000.0, step=100.0)
+with col_acc2:
+    risk_percentage = st.number_input("Ρίσκο ανά Trade (%)", value=1.0, step=0.5)
+
+# Παίρνουμε τις τιμές από το AI analysis
+entry_val = st.session_state.get("parsed_trade", {}).get("entry", 0.0)
+sl_val = st.session_state.get("parsed_trade", {}).get("sl", 0.0)
+tp1_val = st.session_state.get("parsed_trade", {}).get("tp1", 0.0)
+
+if entry_val > 0 and sl_val > 0:
+    # 1. Υπολογισμός Ρίσκου σε $
+    risk_amount = account_balance * (risk_percentage / 100.0)
+    
+    # 2. Υπολογισμός Απόστασης SL (%)
+    price_risk_per_unit = abs(entry_val - sl_val)
+    risk_pct_per_unit = (price_risk_per_unit / entry_val) * 100
+    
+    # 3. Υπολογισμός Position Size
+    position_size_units = risk_amount / price_risk_per_unit if price_risk_per_unit > 0 else 0
+    position_size_usd = position_size_units * entry_val
+    
+    # 4. Υπολογισμός Risk to Reward (RRR) για TP1
+    reward_per_unit = abs(tp1_val - entry_val)
+    rrr = reward_per_unit / price_risk_per_unit if price_risk_per_unit > 0 else 0
+
+    # Εμφάνιση Αποτελεσμάτων σε Cards
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Μέγιστη Χασούρα ($)", f"${risk_amount:.2f}")
+    c2.metric("Position Size ($)", f"${position_size_usd:.2f}")
+    c3.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
+    c4.metric("Risk/Reward (TP1)", f"1 : {rrr:.2f}")
 
 api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else st.sidebar.text_input("Gemini API Key", type="password")
 
