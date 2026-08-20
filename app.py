@@ -330,22 +330,33 @@ try:
 except (ValueError, TypeError):
     e_val, s_val, t_val = 0.0, 0.0, 0.0
 
-# 3. Υπολογισμός και Εμφάνιση Αποτελεσμάτων
+# Προσθήκη επιλογής Leverage
+col_acc1, col_acc2, col_acc3 = st.columns(3)
+with col_acc1:
+    account_balance = st.number_input("Συνολικό Κεφάλαιο ($)", value=50.0, step=10.0)
+with col_acc2:
+    risk_percentage = st.number_input("Ρίσκο ανά Trade (%)", value=1.0, step=0.5)
+with col_acc3:
+    leverage = st.number_input("Leverage (x)", value=10, min_value=1, max_value=100)
+
+# Υπολογισμοί
 if e_val > 0 and s_val > 0 and e_val != s_val:
     risk_amount_usd = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(e_val - s_val)
     
     position_size_units = risk_amount_usd / price_risk_per_unit
     position_size_usd = position_size_units * e_val
+    margin_required = position_size_usd / leverage  # Δικά σου χρήματα με Leverage
     
     reward_per_unit = abs(t_val - e_val) if t_val > 0 else 0
     rrr = reward_per_unit / price_risk_per_unit if price_risk_per_unit > 0 else 0
 
     st.markdown("### 📊 Αποτελέσματα")
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Μέγιστη Χασούρα", f"${risk_amount_usd:.2f}")
     c2.metric("Position Size ($)", f"${position_size_usd:.2f}")
-    c3.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
-    c4.metric("Risk/Reward (TP1)", f"1 : {rrr:.2f}")
+    c3.metric("Margin (x{leverage})", f"${margin_required:.2f}")
+    c4.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
+    c5.metric("Risk/Reward", f"1 : {rrr:.2f}")
 else:
     st.info("💡 Μόλις ολοκληρωθεί η ανάλυση από το AI και συμπληρωθούν το Entry & Stop Loss, θα εμφανιστούν εδώ οι υπολογισμοί.")
