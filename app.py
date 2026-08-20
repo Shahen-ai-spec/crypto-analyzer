@@ -178,7 +178,7 @@ if uploaded_files:
         with cols[idx]:
             st.image(img, caption=f"Εικόνα {idx+1}", use_container_width=True)
 
-   if st.button("🚀 Ανάλυση & Αυτόματη Αποθήκευση"):
+     if st.button("🚀 Ανάλυση & Αυτόματη Αποθήκευση"):
         if not api_key:
             st.error("Δεν βρέθηκε API Key!")
         else:
