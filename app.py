@@ -4,6 +4,7 @@ import os
 import json
 import ccxt
 import time
+import re
 import streamlit.components.v1 as components
 from datetime import datetime
 from google import genai
@@ -23,17 +24,16 @@ if not os.path.exists(LOG_FILE):
 
 api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else st.sidebar.text_input("Gemini API Key", type="password")
 
-# Pydantic Schema για Structured JSON Output
+# Pydantic Schema
 class TradeSetup(BaseModel):
     pair: str = Field(description="Το ζεύγος, π.χ. SOL/USDT")
     direction: str = Field(description="LONG ή SHORT")
-    entry: float = Field(description="Τιμή εισόδου")
-    sl: float = Field(description="Τιμή Stop Loss")
-    tp1: float = Field(description="Τιμή Take Profit 1")
-    tp2: float = Field(description="Τιμή Take Profit 2")
-    rsi_value: str = Field(description="Η τιμή του RSI αν υπάρχει στο chart")
-    confluence_factors: str = Field(description="Παράγοντες επιβεβαίωσης")
-    analysis_summary: str = Field(description="Σύντομη περιγραφή Price Action")
+    entry: str = Field(description="Τιμή εισόδου")
+    sl: str = Field(description="Τιμή Stop Loss")
+    tp1: str = Field(description="Τιμή Take Profit 1")
+    tp2: str = Field(description="Τιμή Take Profit 2")
+    rsi_value: str = Field(description="Τιμή RSI αν υπάρχει")
+    analysis_summary: str = Field(description="Σύντομη περιγραφή Technical Analysis")
 
 # --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
 st.subheader("📊 Live TradingView Chart")
@@ -74,6 +74,7 @@ tv_widget_html = f"""
     "studies": [
       "STD;RSI",
       "STD;EMA",
+      "STD;MACD"
     ],
     "container_id": "tradingview_widget"
   }});
@@ -120,7 +121,6 @@ def check_trade_status(row):
             
             for symbol in tickers_to_try:
                 try:
-                    # Live Ticker
                     ticker = exchange.fetch_ticker(symbol)
                     last_price = float(ticker['last'])
                     high_24h = float(ticker['high'])
@@ -137,7 +137,6 @@ def check_trade_status(row):
                         elif last_price >= sl:
                             return "Loss ❌"
 
-                    # Historical OHLCV
                     if since_timestamp:
                         ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
                         for candle in ohlcv:
@@ -182,24 +181,30 @@ if uploaded_files:
                     client = genai.Client(api_key=api_key)
 
                     prompt = """
-Είσαι ένας Senior Crypto Technical Analyst.
-Ανάλυσε το chart χρησιμοποιώντας Συνδυαστική Επιβεβαίωση (Confluence):
+Είσαι ένας αντικειμενικός και ακριβής Technical Analyst.
+Εξέτασε την εικόνα και εντόπισε αυστηρά τα εξής:
 
-1. Trend (EMA): Έλεγξε τη σχέση της τιμής με τους Moving Averages.
-2. Momentum (RSI & MACD): Έλεγξε αν υπάρχει Divergence ή Crossover.
-3. Key Levels: Εντόπισε Support/Resistance για Entry, SL και TP.
-4. Confluence Score: Δώσε σήμα ΜΟΝΟ αν τουλάχιστον 2 από τα 3 εργαλεία συμφωνούν.
+1. **Pair**: Το όνομα του ζεύγους (π.χ. SOL/USDT) όπως εμφανίζεται πάνω αριστερά.
+2. **Direction**: "LONG" αν η τάση είναι ανοδική / πράσινο κουτί, ή "SHORT" αν είναι καθοδική / κόκκινο κουτί.
+3. **Entry, SL, TP1, TP2**: 
+   - Αν υπάρχει το σχεδιαστικό εργαλείο Long/Short Position του TradingView, διάβασε ΑΚΡΙΒΩΣ τους αριθμούς που αναγράφονται πάνω του.
+   - Αν δεν υπάρχει, χρησιμοποίησε τις τιμές από τον δεξιό άξονα τιμών.
+4. **RSI**: Την ακριβή τιμή του RSI αν υπάρχει.
+5. **Analysis**: Μία σύντομη πρόταση για το Price Action.
 
-Συμπλήρωσε αυστηρά τη δομή JSON.
+Να είσαι 100% ακριβής με τους αριθμούς της εικόνας χωρίς να μαντεύεις.
 """
-                    
+
                     response = None
                     for attempt in range(3):
                         try:
+                            # Ρύθμιση temperature=0.0 για σταθερά/ deterministic αποτελέσματα
                             response = client.models.generate_content(
-                                model='gemini-3.6-flash',
+                                model='gemini-2.5-flash',
                                 contents=images + [prompt],
                                 config=types.GenerateContentConfig(
+                                    temperature=0.0,
+                                    seed=42,
                                     response_mime_type="application/json",
                                     response_schema=TradeSetup,
                                 )
@@ -211,34 +216,46 @@ if uploaded_files:
                                 continue
                             else:
                                 raise e
-                    
+
                     trade_data = json.loads(response.text)
                     st.success("Η ανάλυση ολοκληρώθηκε!")
-                    
+
+                    def parse_float(val):
+                        try:
+                            cleaned = re.sub(r'[^\d.]', '', str(val))
+                            return float(cleaned) if cleaned else 0.0
+                        except Exception:
+                            return 0.0
+
+                    entry_val = parse_float(trade_data.get("entry"))
+                    sl_val = parse_float(trade_data.get("sl"))
+                    tp1_val = parse_float(trade_data.get("tp1"))
+                    tp2_val = parse_float(trade_data.get("tp2"))
+
                     col1, col2, col3, col4 = st.columns(4)
                     col1.metric("Pair", trade_data.get("pair"))
                     col2.metric("Direction", trade_data.get("direction"))
-                    col3.metric("Entry", trade_data.get("entry"))
-                    col4.metric("Stop Loss", trade_data.get("sl"))
-                    
+                    col3.metric("Entry", entry_val)
+                    col4.metric("Stop Loss", sl_val)
+
                     col5, col6 = st.columns(2)
-                    col5.metric("Take Profit 1", trade_data.get("tp1"))
-                    col6.metric("Take Profit 2", trade_data.get("tp2"))
-                    
-                    st.info(trade_data.get("analysis_summary"))
-                    
+                    col5.metric("Take Profit 1", tp1_val)
+                    col6.metric("Take Profit 2", tp2_val)
+
+                    st.info(f"**RSI:** {trade_data.get('rsi_value')}\n\n**Ανάλυση:** {trade_data.get('analysis_summary')}")
+
                     new_entry = {
                         "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "Pair": trade_data.get("pair"),
                         "Direction": trade_data.get("direction"),
-                        "Entry": trade_data.get("entry"),
-                        "SL": trade_data.get("sl"),
-                        "TP1": trade_data.get("tp1"),
-                        "TP2": trade_data.get("tp2"),
+                        "Entry": entry_val,
+                        "SL": sl_val,
+                        "TP1": tp1_val,
+                        "TP2": tp2_val,
                         "Status": "Pending ⏳",
                         "Analysis": trade_data.get("analysis_summary")
                     }
-                    
+
                     df_log = pd.read_csv(LOG_FILE)
                     df_log = pd.concat([pd.DataFrame([new_entry]), df_log], ignore_index=True)
                     df_log.to_csv(LOG_FILE, index=False)
