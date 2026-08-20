@@ -22,44 +22,7 @@ if not os.path.exists(LOG_FILE):
     df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_init.to_csv(LOG_FILE, index=False)
     
-    # --- RISK MANAGEMENT CALCULATOR ---
-st.markdown("---")
-st.subheader("⚖️ Υπολογισμός Ρίσκου & Position Size")
-
-col_acc1, col_acc2 = st.columns(2)
-with col_acc1:
-    account_balance = st.number_input("Συνολικό Κεφάλαιο ($)", value=1000.0, step=100.0)
-with col_acc2:
-    risk_percentage = st.number_input("Ρίσκο ανά Trade (%)", value=1.0, step=0.5)
-
-# Τραβάμε τις τιμές από το AI αν υπάρχουν
-try:
-    parsed = st.session_state.get("parsed_trade", {})
-    def_entry = float(str(parsed.get("entry", 0)).replace(",", "."))
-    def_sl = float(str(parsed.get("sl", 0)).replace(",", "."))
-    def_tp1 = float(str(parsed.get("tp1", 0)).replace(",", "."))
-except:
-    def_entry, def_sl, def_tp1 = 0.0, 0.0, 0.0
-
-# Inputs για Entry / SL / TP
-c_in1, c_in2, c_in3 = st.columns(3)
-with c_in1:
-    entry_val = st.number_input("Entry Price ($)", value=def_entry, format="%.4f")
-with c_in2:
-    sl_val = st.number_input("Stop Loss ($)", value=def_sl, format="%.4f")
-with c_in3:
-    tp1_val = st.number_input("Take Profit 1 ($)", value=def_tp1, format="%.4f")
-
-# Υπολογισμός
-if entry_val > 0 and sl_val > 0 and entry_val != sl_val:
-    risk_amount = account_balance * (risk_percentage / 100.0)
-    price_risk_per_unit = abs(entry_val - sl_val)
-    
-    position_size_units = risk_amount / price_risk_per_unit
-    position_size_usd = position_size_units * entry_val
-    
-    reward_per_unit = abs(tp1_val - entry_val) if tp1_val > 0 else 0
-    rrr = reward_per_unit / price_risk_per_unit if price_risk_per_unit > 0 else 0
+   
 
     st.markdown("### 📊 Αποτελέσματα")
     c1, c2, c3, c4 = st.columns(4)
@@ -347,3 +310,36 @@ if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_b
     df_empty = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_empty.to_csv(LOG_FILE, index=False)
     st.rerun()
+    # --- ΑΥΤΟΜΑΤΟΣ ΥΠΟΛΟΓΙΣΜΟΣ ΡΙΣΚΟΥ & POSITION SIZE (ΚΑΤΩ ΜΕΡΟΣ) ---
+# Διαβάζουμε τις τιμές που έβγαλε αυτόματα το AI από τη φόρμα
+try:
+    e_val = float(str(f_entry).replace(",", "."))
+    s_val = float(str(f_sl).replace(",", "."))
+    t_val = float(str(f_tp1).replace(",", "."))
+except (ValueError, TypeError):
+    e_val, s_val, t_val = 0.0, 0.0, 0.0
+
+if e_val > 0 and s_val > 0 and e_val != s_val:
+    st.markdown("---")
+    st.subheader("⚖️ Αυτόματος Υπολογισμός Ρίσκου & Position Size")
+
+    # Παράμετροι Κεφαλαίου (μπορείς να αλλάξεις τις προεπιλογές)
+    acc_balance = 1000.0  # Συνολικό Κεφάλαιο σε $
+    risk_pct = 1.0        # Ρίσκο ανά Trade %
+
+    # Μαθηματικοί Υπολογισμοί
+    risk_amount_usd = acc_balance * (risk_pct / 100.0)
+    price_risk_per_unit = abs(e_val - s_val)
+    
+    position_size_units = risk_amount_usd / price_risk_per_unit
+    position_size_usd = position_size_units * e_val
+    
+    reward_per_unit = abs(t_val - e_val) if t_val > 0 else 0
+    rrr = reward_per_unit / price_risk_per_unit if price_risk_per_unit > 0 else 0
+
+    # Εμφάνιση των Cards στο κάτω μέρος
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Μέγιστη Χασούρα", f"${risk_amount_usd:.2f}")
+    c2.metric("Position Size ($)", f"${position_size_usd:.2f}")
+    c3.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
+    c4.metric("Risk/Reward (TP1)", f"1 : {rrr:.2f}")
