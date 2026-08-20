@@ -27,7 +27,7 @@ if not os.path.exists(LOG_FILE):
 
     st.markdown("### 📊 Αποτελέσματα")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Μέγιστη Χασούρα", f"${risk_amount:.2f}")
+    c1.metric("Μέγιστη Χασούρα", f"${risk_amount_usd:.2f}")
     c2.metric("Position Size ($)", f"${position_size_usd:.2f}")
     c3.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
     c4.metric("Risk/Reward (TP1)", f"1 : {rrr:.2f}")
