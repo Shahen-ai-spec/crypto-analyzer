@@ -74,7 +74,6 @@ tv_widget_html = f"""
     "studies": [
       "STD;RSI",
       "STD;EMA",
-      "STD;MACD"
     ],
     "container_id": "tradingview_widget"
   }});
