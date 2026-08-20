@@ -12,8 +12,9 @@ from google.genai import types
 from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
 
-st.set_page_config(page_title="Crypto Analyzer & Live Tracker", page_icon="📈", layout="wide")
-st.title("📈 Crypto Chart Analyzer & Live Tracker")
+st.set_page_config(page_title="PANDA CRYPTO Analyzer", page_icon="🐼", layout="wide")
+st.title("🐼 PANDA CRYPTO Analyzer")
+st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
 
 LOG_FILE = "trade_log.csv"
 
