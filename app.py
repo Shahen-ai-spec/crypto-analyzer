@@ -310,7 +310,6 @@ if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_b
     df_empty = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_empty.to_csv(LOG_FILE, index=False)
     st.rerun()
-    
     # --- ΑΥΤΟΜΑΤΟΣ ΥΠΟΛΟΓΙΣΜΟΣ ΡΙΣΚΟΥ & POSITION SIZE (ΣΤΟ ΚΑΤΩ ΜΕΡΟΣ) ---
 st.markdown("---")
 st.subheader("⚖️ Υπολογισμός Ρίσκου & Position Size")
