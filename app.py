@@ -328,13 +328,23 @@ with col_acc2:
 with col_acc3:
     leverage = st.number_input("Leverage (x)", value=10, min_value=1, max_value=100, step=1, key="risk_calc_lev")
 
-# 2. Τραβάμε τις τιμές αυτόματα από το session state
+# 2. Τραβάμε τις τιμές αυτόματα από το session state ή το CSV
 try:
     parsed = st.session_state.get("parsed_trade", {})
-    e_val = float(str(parsed.get("entry", 0)).replace(",", "."))
-    s_val = float(str(parsed.get("sl", 0)).replace(",", "."))
-    t_val = float(str(parsed.get("tp1", 0)).replace(",", "."))
-except (ValueError, TypeError):
+    if parsed:
+        e_val = float(str(parsed.get("entry", 0)).replace(",", "."))
+        s_val = float(str(parsed.get("sl", 0)).replace(",", "."))
+        t_val = float(str(parsed.get("tp1", 0)).replace(",", "."))
+    else:
+        # Αν το session state είναι άδειο, παίρνουμε το τελευταίο trade από το CSV
+        df_last = pd.read_csv(LOG_FILE)
+        if not df_last.empty:
+            e_val = float(str(df_last.iloc[0]["Entry"]).replace(",", "."))
+            s_val = float(str(df_last.iloc[0]["SL"]).replace(",", "."))
+            t_val = float(str(df_last.iloc[0]["TP1"]).replace(",", "."))
+        else:
+            e_val, s_val, t_val = 0.0, 0.0, 0.0
+except (ValueError, TypeError, Exception):
     e_val, s_val, t_val = 0.0, 0.0, 0.0
 
 # 3. Υπολογισμοί & Εμφάνιση
