@@ -182,7 +182,7 @@ if uploaded_files:
         if not api_key:
             st.error("Δεν βρέθηκε API Key!")
         else:
-            with st.spinner("Γίνεται ανάλυση εικόνας με το Gemini 3.1 Pro..."):
+            with st.spinner("Γίνεται ανάλυση με το Gemini 3.6 Flash..."):
                 try:
                     client = genai.Client(api_key=api_key)
 
@@ -190,18 +190,13 @@ if uploaded_files:
 Είσαι ένας εξαιρετικά ακριβής Technical Analyst.
 Εστίασε ΜΟΝΟ στο γράφημα (chart) και αγνόησε τα μενού της εφαρμογής:
 
-1. **Pair**: Εντόπισε το όνομα του ζεύγους (π.χ. SUI/USDT, SOL/USDT, BTC/USDT).
-2. **Direction**: "LONG" (αν είναι ανοδικό / πράσινο) ή "SHORT" (αν είναι καθοδικό / κόκκινο).
-3. **Entry**: Η τρέχουσα τιμή ή η τιμή εισόδου στο γράφημα.
-4. **SL**: Η τιμή Stop Loss (κόκκινο επίπεδο / swing low/high).
-5. **TP1 & TP2**: Τιμές Take Profit.
-6. **RSI**: Η τιμή του RSI αν εμφανίζεται κάτω στο chart.
-7. **Analysis**: Σύντομη αιτιολόγηση του trade.
-
-Δώσε ΑΚΡΙΒΕΙΣ αριθμούς όπως αναγράφονται στον άξονα τιμών.
+1. **Pair**: Εντόπισε το όνομα του ζεύγους (π.χ. SUI/USDT).
+2. **Direction**: "LONG" ή "SHORT".
+3. **Entry, SL, TP1, TP2**: Διάβασε ΑΚΡΙΒΩΣ τους αριθμούς.
+4. **RSI**: Η τιμή του RSI αν εμφανίζεται.
+5. **Analysis**: Σύντομη αιτιολόγηση.
 """
-
-                   response = None
+                    response = None
                     for attempt in range(4):
                         try:
                             response = client.models.generate_content(
@@ -221,13 +216,12 @@ if uploaded_files:
                                 continue
                             else:
                                 raise e
-
+                    
                     st.session_state["parsed_trade"] = json.loads(response.text)
-                    st.success("Η ανάλυση ολοκληρώθηκε! Επιβεβαίωσε τα στοιχεία παρακάτω.")
+                    st.success("Η ανάλυση ολοκληρώθηκε!")
 
                 except Exception as e:
                     st.error(f"Σφάλμα κατά την ανάλυση: {e}")
-
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state:
     trade_data = st.session_state["parsed_trade"]
