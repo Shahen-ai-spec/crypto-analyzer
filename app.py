@@ -202,10 +202,11 @@ if uploaded_files:
 """
 
                     response = None
-                    for attempt in range(3):
+                    for attempt in range(4):
                         try:
+                            # Χρήση 2.5-flash για αποφυγή 429 quota limits
                             response = client.models.generate_content(
-                                model='gemini-3.1-pro-preview',
+                                model='gemini-2.5-flash',
                                 contents=processed_images + [prompt],
                                 config=types.GenerateContentConfig(
                                     temperature=0.0,
@@ -216,8 +217,9 @@ if uploaded_files:
                             )
                             break
                         except Exception as e:
-                            if "503" in str(e) and attempt < 2:
-                                time.sleep(2)
+                            # Αν χτυπήσει όριο (429) ή προσωρινό σφάλμα (503), περιμένει λίγα δευτερόλεπτα
+                            if ("429" in str(e) or "503" in str(e)) and attempt < 3:
+                                time.sleep(5 * (attempt + 1))
                                 continue
                             else:
                                 raise e
