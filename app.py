@@ -56,25 +56,35 @@ with col_tv1:
 with col_tv2:
     timeframe = st.selectbox("Timeframe:", ["1", "3", "5", "15", "60", "240", "D"], index=2, key="tv_tf_select")
 
-tv_widget_html = f"""
+# Ορισμός του HTML καθαρά χωρίς f-string για αποφυγή syntax errors
+tv_widget_html = """
 <div class="tradingview-widget-container" style="height:500px;width:100%;">
   <div id="tradingview_widget" style="height:500px;width:100%;"></div>
   <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <script type="text/javascript">
- new TradingView.widget({{
-      "autosize": true,
-      "symbol": "{tv_symbol}",
-      "interval": "{timeframe}",
-      "timezone": "Europe/Athens",
-      "theme": "dark",
-      "style": "1",
-      "locale": "el",
-      "toolbar_bg": "#f1f3f6",
-      "enable_publishing": false,
-      "hide_legend": false,
-      "studies": [],
-      "container_id": "tradingview_widget"
-    }});
+  new TradingView.widget({
+    "autosize": true,
+    "symbol": "SYMBOL_PLACEHOLDER",
+    "interval": "TIMEFRAME_PLACEHOLDER",
+    "timezone": "Europe/Athens",
+    "theme": "dark",
+    "style": "1",
+    "locale": "el",
+    "toolbar_bg": "#f1f3f6",
+    "enable_publishing": false,
+    "hide_legend": false,
+    "studies": [],
+    "container_id": "tradingview_widget"
+  });
+  </script>
+</div>
+"""
+
+# Αντικατάσταση των μεταβλητών με ασφάλεια
+final_html = tv_widget_html.replace("SYMBOL_PLACEHOLDER", tv_symbol).replace("TIMEFRAME_PLACEHOLDER", str(timeframe))
+
+# Εμφάνιση του Widget
+st.components.v1.html(final_html, height=500)
     
     "container_id": "tradingview_widget"
   }});
