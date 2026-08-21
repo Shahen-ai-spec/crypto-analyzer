@@ -128,25 +128,27 @@ def check_trade_status(row):
                     # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV) από την ώρα του trade
                     if since_timestamp:
                         ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
-                        for symbol in tickers_to_try:
-            try:
-                # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV) από την ώρα του trade
-                if since_timestamp:
-                    ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
-                    for candle in ohlcv:
-                        c_high, c_low = candle[2], candle[3]
-                        
-                        if "LONG" in direction.upper():
-                            if tp1 > 0 and c_high >= tp1:
-                                return "WIN 🏆"
-                            elif sl > 0 and c_low <= sl:
-                                return "LOSS ❌"
-                                
-                        elif "SHORT" in direction.upper():
-                            if tp1 > 0 and c_low <= tp1:
-                                return "WIN 🏆"
-                            elif sl > 0 and c_high >= sl:
-                                return "LOSS ❌"
+                       for symbol in tickers_to_try:
+        try:
+            # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV) από την ώρα του trade
+            if since_timestamp:
+                ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
+                for candle in ohlcv:
+                    c_high, c_low = candle[2], candle[3]
+                    
+                    if "LONG" in direction.upper():
+                        if tp1 > 0 and c_high >= tp1:
+                            return "WIN 🏆"
+                        elif sl > 0 and c_low <= sl:
+                            return "LOSS ❌"
+                            
+                    elif "SHORT" in direction.upper():
+                        if tp1 > 0 and c_low <= tp1:
+                            return "WIN 🏆"
+                        elif sl > 0 and c_high >= sl:
+                            return "LOSS ❌"
+        except Exception:
+            continue
                     # 2. Αν δεν βρει σήμα στα κεριά, έλεγχος με την Τρέχουσα Τιμή (Last Price)
                     ticker = exchange.fetch_ticker(symbol)
                     last_price = float(ticker['last'])
