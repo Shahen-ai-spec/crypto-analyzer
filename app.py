@@ -270,9 +270,9 @@ col_a, col_b = st.columns([1, 4])
 with col_a:
     if st.button("🔄 Ενημέρωση Live Status Trades", key="update_status_btn"):
         with st.spinner("Έλεγχος ζωντανών τιμών από την αγορά..."):
-            df_history["Status"] = df_history.apply(check_trade_status, axis=1)
-            df_history.to_csv(LOG_FILE, index=False)
-            st.success("Το ιστορικό ενημερώθηκε!")
+            if not df_history.empty:
+                df_history["Status"] = df_history.apply(check_trade_status, axis=1)
+                df_history.to_csv(LOG_FILE, index=False)
             st.rerun()
 
 st.dataframe(df_history, use_container_width=True)
