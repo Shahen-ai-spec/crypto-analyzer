@@ -128,18 +128,9 @@ def check_trade_status(row):
                     return "LOSS ❌"
 
             # Αν βρει επιτυχώς το ticker αλλά δεν χτύπησε SL/TP
+            # Αν βρει επιτυχώς το ticker αλλά δεν χτύπησε SL/TP
             return "Pending ⏳"
 
-        except Exception:
-            continue
-
-    return "Pending ⏳"
-
-                    # Αν βρει επιτυχώς το ticker αλλά δεν χτύπησε SL/TP
-                    return "Pending ⏳"
-
-                except Exception:
-                    continue
         except Exception:
             continue
 
