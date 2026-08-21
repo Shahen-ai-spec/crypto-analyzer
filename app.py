@@ -61,20 +61,20 @@ tv_widget_html = f"""
   <div id="tradingview_widget" style="height:500px;width:100%;"></div>
   <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <script type="text/javascript">
-  new TradingView.widget({{
-    "autosize": true,
-    "symbol": "{tv_symbol}",
-    "interval": "{timeframe}",
-    "timezone": "Europe/Athens"
-    "theme": "dark",
-    "style": "1",
-    "locale": "el",
-    "toolbar_bg": "#f1f3f6",
-    "enable_publishing": false,
-    "hide_legend": false,
-    "studies": [],
-    "container_id": "tradingview_widget"
-      });
+ new TradingView.widget({{
+      "autosize": true,
+      "symbol": "{tv_symbol}",
+      "interval": "{timeframe}",
+      "timezone": "Europe/Athens",
+      "theme": "dark",
+      "style": "1",
+      "locale": "el",
+      "toolbar_bg": "#f1f3f6",
+      "enable_publishing": false,
+      "hide_legend": false,
+      "studies": [],
+      "container_id": "tradingview_widget"
+    }});
     
     "container_id": "tradingview_widget"
   }});
