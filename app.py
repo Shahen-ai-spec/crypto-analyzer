@@ -65,13 +65,14 @@ tv_widget_html = f"""
     "autosize": true,
     "symbol": "{tv_symbol}",
     "interval": "{timeframe}",
-    "timezone": "Etc/UTC",
+    "timezone": "Europe/Athens"
     "theme": "dark",
     "style": "1",
     "locale": "el",
     "toolbar_bg": "#f1f3f6",
     "enable_publishing": false,
     "hide_legend": false,
+    "studies": [],
     
     "container_id": "tradingview_widget"
   }});
