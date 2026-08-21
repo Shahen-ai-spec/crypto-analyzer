@@ -22,10 +22,7 @@ LOG_FILE = "trade_log.csv"
 if not os.path.exists(LOG_FILE):
     df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_init.to_csv(LOG_FILE, index=False)
-    
-   
 
- 
 api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else st.sidebar.text_input("Gemini API Key", type="password")
 
 # Pydantic Schema
@@ -94,7 +91,7 @@ def check_trade_status(row):
     direction = str(row.get("Direction", "")).upper()
     current_status = row.get("Status", "Pending ⏳")
     
-    if "WIN" in current_status or "LOSS" in current_status or "TP" in current_status or "SL" in current_status:
+    if "WIN" in str(current_status) or "LOSS" in str(current_status) or "TP" in str(current_status) or "SL" in str(current_status):
         return current_status
 
     if not pair or str(pair).strip() == "" or str(pair) == "nan":
@@ -110,8 +107,6 @@ def check_trade_status(row):
         return current_status
 
     clean_pair = str(pair).replace("/", "").strip().upper()
-    
-    # Αν το ζεύγος είναι USDC (π.χ. XRPUSDC), προσθέτουμε και την έκδοση USDT (XRPUSDT) για σίγουρη λήψη τιμών
     base_asset = clean_pair.replace("USDC", "").replace("USDT", "")
     
     tickers_to_try = [
@@ -166,15 +161,13 @@ def check_trade_status(row):
                     if sl > 0 and last_price >= sl:
                         return "LOSS ❌ (SL)"
 
-                # Αν βρήκε τιμή αλλά δεν χτύπησε SL/TP ακόμα
                 return "Pending ⏳"
 
         except Exception:
             continue
 
     return "Pending ⏳"
-            
-    return row.get("Status", "OPEN")
+
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
 uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="chart_uploader")
@@ -185,8 +178,6 @@ if uploaded_files:
     
     for idx, uploaded_file in enumerate(uploaded_files):
         img = Image.open(uploaded_file).convert("RGB")
-        
-        # Αύξηση Contrast για καθαρότερη ανάγνωση αριθμών
         enhancer = ImageEnhance.Contrast(img)
         enhanced_img = enhancer.enhance(1.2)
         
@@ -250,6 +241,7 @@ if uploaded_files:
 
                 except Exception as e:
                     st.error(f"Σφάλμα κατά την ανάλυση: {e}")
+
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state:
     trade_data = st.session_state["parsed_trade"]
@@ -321,11 +313,11 @@ if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_b
     df_empty = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
     df_empty.to_csv(LOG_FILE, index=False)
     st.rerun()
-    # --- ΑΥΤΟΜΑΤΟΣ ΥΠΟΛΟΓΙΣΜΟΣ ΡΙΣΚΟΥ & POSITION SIZE ---
+
+# --- ΑΥΤΟΜΑΤΟΣ ΥΠΟΛΟΓΙΣΜΟΣ ΡΙΣΚΟΥ & POSITION SIZE ---
 st.markdown("---")
 st.subheader("⚖️ Υπολογισμός Ρίσκου & Position Size")
 
-# 1. Inputs για Κεφάλαιο, Ρίσκο & Leverage με μοναδικά keys
 col_acc1, col_acc2, col_acc3 = st.columns(3)
 with col_acc1:
     account_balance = st.number_input("Συνολικό Κεφάλαιο ($)", value=50.0, step=10.0, key="risk_calc_balance")
@@ -334,7 +326,6 @@ with col_acc2:
 with col_acc3:
     leverage = st.number_input("Leverage (x)", value=10, min_value=1, max_value=100, step=1, key="risk_calc_lev")
 
-# 2. Τραβάμε τις τιμές αυτόματα από το session state ή το CSV
 try:
     parsed = st.session_state.get("parsed_trade", {})
     if parsed:
@@ -342,7 +333,6 @@ try:
         s_val = float(str(parsed.get("sl", 0)).replace(",", "."))
         t_val = float(str(parsed.get("tp1", 0)).replace(",", "."))
     else:
-        # Αν το session state είναι άδειο, παίρνουμε το τελευταίο trade από το CSV
         df_last = pd.read_csv(LOG_FILE)
         if not df_last.empty:
             e_val = float(str(df_last.iloc[0]["Entry"]).replace(",", "."))
@@ -353,14 +343,13 @@ try:
 except (ValueError, TypeError, Exception):
     e_val, s_val, t_val = 0.0, 0.0, 0.0
 
-# 3. Υπολογισμοί & Εμφάνιση
 if e_val > 0 and s_val > 0 and e_val != s_val:
     risk_amount_usd = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(e_val - s_val)
     
     position_size_units = risk_amount_usd / price_risk_per_unit
     position_size_usd = position_size_units * e_val
-    margin_required = position_size_usd / leverage  # Δικά σου λεφτά με μόχλευση
+    margin_required = position_size_usd / leverage
     
     reward_per_unit = abs(t_val - e_val) if t_val > 0 else 0
     potential_profit_usd = position_size_units * reward_per_unit
