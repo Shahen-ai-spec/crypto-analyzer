@@ -129,9 +129,9 @@ def check_trade_status(row):
                     if since_timestamp:
                         ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
                         for candle in ohlcv:
-    c_high, c_low = candle[2], candle[3]
+                            c_high, c_low = candle[2], candle[3]
     
-    if "LONG" in direction.upper():
+                            if "LONG" in direction.upper():
         # Πρώτα έλεγχος αν χτύπησε το TP1
         if tp1 > 0 and c_high >= tp1:
             return "WIN 🏆"
