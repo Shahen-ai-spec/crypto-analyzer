@@ -72,11 +72,7 @@ tv_widget_html = f"""
     "toolbar_bg": "#f1f3f6",
     "enable_publishing": false,
     "hide_legend": false,
-    "studies": [
-      "STD;RSI",
-      "STD;EMA",
-      "STD;MACD"
-    ],
+    
     "container_id": "tradingview_widget"
   }});
   </script>
