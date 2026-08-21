@@ -125,7 +125,7 @@ def check_trade_status(row):
 
             
                        for symbol in tickers_to_try:
-                           try:
+        try:
             # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV) από την ώρα του trade
             if since_timestamp:
                 ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
