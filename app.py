@@ -90,51 +90,48 @@ st.divider()
 
 # --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
 def check_trade_status(row):
+    pair = row.get("Pair")
+    direction = str(row.get("Direction", "")).upper()
+    
+    # 1. Έλεγχος αν λείπουν βασικά στοιχεία
+    if not pair or str(pair).strip() == "" or str(pair) == "nan":
+        return row.get("Status", "OPEN")
+        
+    # 2. Ορισμός των tickers που θα δοκιμαστούν
+    clean_pair = str(pair).replace("/", "")
+    tickers_to_try = [str(pair), clean_pair, f"{clean_pair}:USDT"]
+    
+    # 3. Υπολογισμός timestamp (αν υπάρχει στήλη Date)
+    since_timestamp = None
+    if "Date" in row and row["Date"]:
+        try:
+            since_timestamp = int(pd.to_datetime(row["Date"]).timestamp() * 1000)
+        except Exception:
+            since_timestamp = None
+
+    # 4. Loop ελέγχου τιμών
     for symbol in tickers_to_try:
         try:
-            # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV) από την ώρα του trade
             if since_timestamp:
                 ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
                 for candle in ohlcv:
                     c_high, c_low = candle[2], candle[3]
                     
-                    if "LONG" in direction.upper():
-                        if tp1 > 0 and c_high >= tp1:
-                            return "WIN 🏆"
-                        elif sl > 0 and c_low <= sl:
-                            return "LOSS ❌"
-                            
-                    elif "SHORT" in direction.upper():
-                        if tp1 > 0 and c_low <= tp1:
-                            return "WIN 🏆"
-                        elif sl > 0 and c_high >= sl:
-                            return "LOSS ❌"
+                    if "LONG" in direction:
+                        if row.get("TP1", 0) > 0 and c_high >= row.get("TP1", 0):
+                            return "TP1 HIT"
+                        if row.get("SL", 0) > 0 and c_low <= row.get("SL", 0):
+                            return "SL HIT"
+                    elif "SHORT" in direction:
+                        if row.get("TP1", 0) > 0 and c_low <= row.get("TP1", 0):
+                            return "TP1 HIT"
+                        if row.get("SL", 0) > 0 and c_high >= row.get("SL", 0):
+                            return "SL HIT"
+            break  # Αν πετύχει το fetch, βγαίνει από το loop
         except Exception:
             continue
-                   # 2. Αν δεν βρει σήμα στα κεριά, έλεγχος με την Τρέχουσα Τιμή (Last Price)
-            ticker = exchange.fetch_ticker(symbol)
-            last_price = float(ticker['last'])
-
-            if "LONG" in direction.upper():
-                if tp1 > 0 and last_price >= tp1:
-                    return "WIN 🏆"
-                elif sl > 0 and last_price <= sl:
-                    return "LOSS ❌"
-                    
-            elif "SHORT" in direction.upper():
-                if tp1 > 0 and last_price <= tp1:
-                    return "WIN 🏆"
-                elif sl > 0 and last_price >= sl:
-                    return "LOSS ❌"
-
-            # Αν βρει επιτυχώς το ticker αλλά δεν χτύπησε SL/TP
-            # Αν βρει επιτυχώς το ticker αλλά δεν χτύπησε SL/TP
-            return "Pending ⏳"
-
-        except Exception:
-            continue
-
-    return "Pending ⏳"
+            
+    return row.get("Status", "OPEN")
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
 uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="chart_uploader")
