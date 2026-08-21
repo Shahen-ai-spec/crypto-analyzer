@@ -90,41 +90,7 @@ st.divider()
 
 # --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
 def check_trade_status(row):
-    status = str(row.get("Status", "Pending ⏳"))
-    if "Win" in status or "Loss" in status or "Canceled" in status:
-        return status
-
-    pair = str(row.get("Pair", "")).upper().strip()
-    direction = str(row.get("Direction", "")).upper().strip()
-
-    try:
-        entry = float(str(row["Entry"]).replace(",", "."))
-        sl = float(str(row["SL"]).replace(",", "."))
-        tp1 = float(str(row["TP1"]).replace(",", "."))
-    except (ValueError, TypeError, KeyError):
-        return status
-
-    try:
-        trade_date = datetime.strptime(str(row["Date"]), "%Y-%m-%d %H:%M")
-        since_timestamp = int(trade_date.timestamp() * 1000)
-    except Exception:
-        since_timestamp = None
-
-    for exchange_class in [ccxt.bybit, ccxt.binance]:
-        try:
-            exchange = exchange_class()
-            raw_pair = pair.replace("/", "")
-            tickers_to_try = [
-                pair,
-                raw_pair,
-                pair.replace("USDC", "USDT"),
-                raw_pair.replace("USDC", "USDT"),
-                pair.replace("USDT", "USDC"),
-                raw_pair.replace("USDT", "USDC")
-            ]
-
-            
-                       for symbol in tickers_to_try:
+    for symbol in tickers_to_try:
         try:
             # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV) από την ώρα του trade
             if since_timestamp:
