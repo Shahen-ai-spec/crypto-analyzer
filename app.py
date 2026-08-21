@@ -73,6 +73,8 @@ tv_widget_html = f"""
     "enable_publishing": false,
     "hide_legend": false,
     "studies": [],
+    "container_id": "tradingview_widget"
+      });
     
     "container_id": "tradingview_widget"
   }});
