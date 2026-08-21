@@ -80,18 +80,11 @@ tv_widget_html = """
 </div>
 """
 
-# Αντικατάσταση των μεταβλητών με ασφάλεια
+# Αντικατάσταση μεταβλητών
 final_html = tv_widget_html.replace("SYMBOL_PLACEHOLDER", tv_symbol).replace("TIMEFRAME_PLACEHOLDER", str(timeframe))
 
-# Εμφάνιση του Widget
+# Εμφάνιση Widget
 st.components.v1.html(final_html, height=500)
-    
-    "container_id": "tradingview_widget"
-  }});
-  </script>
-</div>
-"""
-components.html(tv_widget_html, height=510)
 st.divider()
 
 # --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
