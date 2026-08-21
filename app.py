@@ -111,20 +111,29 @@ def check_trade_status(row):
                             return "LOSS ❌"
         except Exception:
             continue
-                    # 2. Αν δεν βρει σήμα στα κεριά, έλεγχος με την Τρέχουσα Τιμή (Last Price)
-                    ticker = exchange.fetch_ticker(symbol)
-                    last_price = float(ticker['last'])
+                   # 2. Αν δεν βρει σήμα στα κεριά, έλεγχος με την Τρέχουσα Τιμή (Last Price)
+            ticker = exchange.fetch_ticker(symbol)
+            last_price = float(ticker['last'])
 
-                    if "LONG" in direction:
-                        if last_price >= tp1 and tp1 > 0:
-                            return "Win 🏆"
-                        elif last_price <= sl and sl > 0:
-                            return "Loss ❌"
-                    elif "SHORT" in direction:
-                        if last_price <= tp1 and tp1 > 0:
-                            return "Win 🏆"
-                        elif last_price >= sl and sl > 0:
-                            return "Loss ❌"
+            if "LONG" in direction.upper():
+                if tp1 > 0 and last_price >= tp1:
+                    return "WIN 🏆"
+                elif sl > 0 and last_price <= sl:
+                    return "LOSS ❌"
+                    
+            elif "SHORT" in direction.upper():
+                if tp1 > 0 and last_price <= tp1:
+                    return "WIN 🏆"
+                elif sl > 0 and last_price >= sl:
+                    return "LOSS ❌"
+
+            # Αν βρει επιτυχώς το ticker αλλά δεν χτύπησε SL/TP
+            return "Pending ⏳"
+
+        except Exception:
+            continue
+
+    return "Pending ⏳"
 
                     # Αν βρει επιτυχώς το ticker αλλά δεν χτύπησε SL/TP
                     return "Pending ⏳"
