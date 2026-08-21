@@ -94,7 +94,6 @@ def check_trade_status(row):
     direction = str(row.get("Direction", "")).upper()
     current_status = row.get("Status", "Pending ⏳")
     
-    # Αν το trade έχει ήδη κλείσει, μην το ξαναελέγχεις
     if "WIN" in current_status or "LOSS" in current_status or "TP" in current_status or "SL" in current_status:
         return current_status
 
@@ -104,7 +103,6 @@ def check_trade_status(row):
     # Αρχικοποίηση CCXT Bybit
     exchange = ccxt.bybit({'enableRateLimit': True})
 
-    # Ασφαλής μετατροπή τιμών σε float
     try:
         tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
         sl = float(str(row.get("SL", 0)).replace(",", "."))
@@ -112,7 +110,17 @@ def check_trade_status(row):
         return current_status
 
     clean_pair = str(pair).replace("/", "").strip().upper()
-    tickers_to_try = [f"{clean_pair}", f"{clean_pair[:3]}/USDT" if len(clean_pair)>3 else clean_pair, f"{clean_pair}:USDT"]
+    
+    # Αν το ζεύγος είναι USDC (π.χ. XRPUSDC), προσθέτουμε και την έκδοση USDT (XRPUSDT) για σίγουρη λήψη τιμών
+    base_asset = clean_pair.replace("USDC", "").replace("USDT", "")
+    
+    tickers_to_try = [
+        f"{base_asset}/USDT",
+        f"{base_asset}/USDC",
+        f"{base_asset}USDT",
+        f"{base_asset}USDC",
+        f"{base_asset}/USDT:USDT"
+    ]
     
     # Υπολογισμός Timestamp
     since_timestamp = None
@@ -127,7 +135,7 @@ def check_trade_status(row):
             # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV)
             if since_timestamp:
                 ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
-                if ohlcv:
+                if ohlcv and len(ohlcv) > 0:
                     for candle in ohlcv:
                         c_high, c_low = float(candle[2]), float(candle[3])
                         
@@ -142,22 +150,25 @@ def check_trade_status(row):
                             if sl > 0 and c_high >= sl:
                                 return "LOSS ❌ (SL)"
 
-            # 2. Έλεγχος με την Τρέχουσα Τιμή (Last Price Fallback)
+            # 2. Έλεγχος με Τρέχουσα Τιμή (Ticker Fallback)
             ticker = exchange.fetch_ticker(symbol)
-            last_price = float(ticker['last'])
+            if ticker and 'last' in ticker and ticker['last'] is not None:
+                last_price = float(ticker['last'])
 
-            if "LONG" in direction:
-                if tp1 > 0 and last_price >= tp1:
-                    return "WIN 🏆 (TP1)"
-                if sl > 0 and last_price <= sl:
-                    return "LOSS ❌ (SL)"
-            elif "SHORT" in direction:
-                if tp1 > 0 and last_price <= tp1:
-                    return "WIN 🏆 (TP1)"
-                if sl > 0 and last_price >= sl:
-                    return "LOSS ❌ (SL)"
+                if "LONG" in direction:
+                    if tp1 > 0 and last_price >= tp1:
+                        return "WIN 🏆 (TP1)"
+                    if sl > 0 and last_price <= sl:
+                        return "LOSS ❌ (SL)"
+                elif "SHORT" in direction:
+                    if tp1 > 0 and last_price <= tp1:
+                        return "WIN 🏆 (TP1)"
+                    if sl > 0 and last_price >= sl:
+                        return "LOSS ❌ (SL)"
 
-            return "Pending ⏳"
+                # Αν βρήκε τιμή αλλά δεν χτύπησε SL/TP ακόμα
+                return "Pending ⏳"
+
         except Exception:
             continue
 
