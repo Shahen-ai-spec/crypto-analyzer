@@ -129,21 +129,19 @@ def check_trade_status(row):
                     if since_timestamp:
                         ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
                         for candle in ohlcv:
-                            c_high, c_low = candle[2], candle[3]
-    
-                            if "LONG" in direction.upper():
-        # Πρώτα έλεγχος αν χτύπησε το TP1
-        if tp1 > 0 and c_high >= tp1:
-            return "WIN 🏆"
-        elif sl > 0 and c_low <= sl:
-            return "LOSS ❌"
+            c_high, c_low = candle[2], candle[3]
             
-    elif "SHORT" in direction.upper():
-        # Πρώτα έλεγχος αν χτύπησε το TP1
-        if tp1 > 0 and c_low <= tp1:
-            return "WIN 🏆"
-        elif sl > 0 and c_high >= sl:
-            return "LOSS ❌"
+            if "LONG" in direction.upper():
+                if tp1 > 0 and c_high >= tp1:
+                    return "WIN 🏆"
+                elif sl > 0 and c_low <= sl:
+                    return "LOSS ❌"
+                    
+            elif "SHORT" in direction.upper():
+                if tp1 > 0 and c_low <= tp1:
+                    return "WIN 🏆"
+                elif sl > 0 and c_high >= sl:
+                    return "LOSS ❌"
 
                     # 2. Αν δεν βρει σήμα στα κεριά, έλεγχος με την Τρέχουσα Τιμή (Last Price)
                     ticker = exchange.fetch_ticker(symbol)
