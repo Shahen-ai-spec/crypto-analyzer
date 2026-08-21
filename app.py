@@ -92,44 +92,76 @@ st.divider()
 def check_trade_status(row):
     pair = row.get("Pair")
     direction = str(row.get("Direction", "")).upper()
+    current_status = row.get("Status", "Pending ⏳")
     
-    # 1. Έλεγχος αν λείπουν βασικά στοιχεία
+    # Αν το trade έχει ήδη κλείσει, μην το ξαναελέγχεις
+    if "WIN" in current_status or "LOSS" in current_status or "TP" in current_status or "SL" in current_status:
+        return current_status
+
     if not pair or str(pair).strip() == "" or str(pair) == "nan":
-        return row.get("Status", "OPEN")
-        
-    # 2. Ορισμός των tickers που θα δοκιμαστούν
-    clean_pair = str(pair).replace("/", "")
-    tickers_to_try = [str(pair), clean_pair, f"{clean_pair}:USDT"]
+        return current_status
+
+    # Αρχικοποίηση CCXT Bybit
+    exchange = ccxt.bybit({'enableRateLimit': True})
+
+    # Ασφαλής μετατροπή τιμών σε float
+    try:
+        tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
+        sl = float(str(row.get("SL", 0)).replace(",", "."))
+    except Exception:
+        return current_status
+
+    clean_pair = str(pair).replace("/", "").strip().upper()
+    tickers_to_try = [f"{clean_pair}", f"{clean_pair[:3]}/USDT" if len(clean_pair)>3 else clean_pair, f"{clean_pair}:USDT"]
     
-    # 3. Υπολογισμός timestamp (αν υπάρχει στήλη Date)
+    # Υπολογισμός Timestamp
     since_timestamp = None
-    if "Date" in row and row["Date"]:
+    if "Date" in row and pd.notnull(row["Date"]):
         try:
             since_timestamp = int(pd.to_datetime(row["Date"]).timestamp() * 1000)
         except Exception:
             since_timestamp = None
 
-    # 4. Loop ελέγχου τιμών
     for symbol in tickers_to_try:
         try:
+            # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV)
             if since_timestamp:
                 ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
-                for candle in ohlcv:
-                    c_high, c_low = candle[2], candle[3]
-                    
-                    if "LONG" in direction:
-                        if row.get("TP1", 0) > 0 and c_high >= row.get("TP1", 0):
-                            return "TP1 HIT"
-                        if row.get("SL", 0) > 0 and c_low <= row.get("SL", 0):
-                            return "SL HIT"
-                    elif "SHORT" in direction:
-                        if row.get("TP1", 0) > 0 and c_low <= row.get("TP1", 0):
-                            return "TP1 HIT"
-                        if row.get("SL", 0) > 0 and c_high >= row.get("SL", 0):
-                            return "SL HIT"
-            break  # Αν πετύχει το fetch, βγαίνει από το loop
+                if ohlcv:
+                    for candle in ohlcv:
+                        c_high, c_low = float(candle[2]), float(candle[3])
+                        
+                        if "LONG" in direction:
+                            if tp1 > 0 and c_high >= tp1:
+                                return "WIN 🏆 (TP1)"
+                            if sl > 0 and c_low <= sl:
+                                return "LOSS ❌ (SL)"
+                        elif "SHORT" in direction:
+                            if tp1 > 0 and c_low <= tp1:
+                                return "WIN 🏆 (TP1)"
+                            if sl > 0 and c_high >= sl:
+                                return "LOSS ❌ (SL)"
+
+            # 2. Έλεγχος με την Τρέχουσα Τιμή (Last Price Fallback)
+            ticker = exchange.fetch_ticker(symbol)
+            last_price = float(ticker['last'])
+
+            if "LONG" in direction:
+                if tp1 > 0 and last_price >= tp1:
+                    return "WIN 🏆 (TP1)"
+                if sl > 0 and last_price <= sl:
+                    return "LOSS ❌ (SL)"
+            elif "SHORT" in direction:
+                if tp1 > 0 and last_price <= tp1:
+                    return "WIN 🏆 (TP1)"
+                if sl > 0 and last_price >= sl:
+                    return "LOSS ❌ (SL)"
+
+            return "Pending ⏳"
         except Exception:
             continue
+
+    return "Pending ⏳"
             
     return row.get("Status", "OPEN")
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
