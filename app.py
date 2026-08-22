@@ -203,6 +203,14 @@ if uploaded_files:
         except Exception as e:
             st.error(f"Σφάλμα κατά την ανάλυση: {e}")
 
+# --- ΒΟΗΘΗΤΙΚΗ ΣΥΝΑΡΤΗΣΗ ΚΑΘΑΡΙΣΜΟΥ ΤΙΜΩΝ ---
+def clean_val(val):
+    try:
+        match = re.search(r'\d+\.?\d*', str(val))
+        return float(match.group()) if match else 0.0
+    except Exception:
+        return 0.0
+
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state:
     trade_data = st.session_state["parsed_trade"]
