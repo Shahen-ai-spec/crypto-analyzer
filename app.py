@@ -206,17 +206,21 @@ if uploaded_files:
 
     with st.form("confirm_trade_form"):
         col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            f_pair = st.text_input("Pair", value=trade_data.get("pair", "SUI/USDT"))
-            f_dir = st.selectbox("Direction", ["LONG", "SHORT"], index=0 if str(trade_data.get("direction")).upper() == "LONG" else 1)
-            f_entry = st.number_input("Entry Price", value=clean_val(trade_data.get("entry")), format="%.4f")
-            f_sl = st.number_input("Stop Loss (SL)", value=clean_val(trade_data.get("sl")), format="%.4f")
+       with col_f1:
+        f_pair = st.text_input("Pair", value=trade_data.get("pair", "SUI/USDT"))
         
-        with col_f2:
-            f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
-            f_tp2 = st.number_input("Take Profit 2 (TP2)", value=clean_val(trade_data.get("tp2")), format="%.4f")
-            f_rsi = st.text_input("RSI Value", value=str(trade_data.get("rsi_value", "N/A")))
-            f_analysis = st.text_area("Analysis Summary", value=trade_data.get("analysis_summary", ""))
+        # Υποστήριξη για LONG, SHORT και NO TRADE
+        dir_val = str(trade_data.get("direction", "NO TRADE")).upper()
+        opts = ["LONG", "SHORT", "NO TRADE"]
+        dir_idx = opts.index(dir_val) if dir_val in opts else 2
+        f_dir = st.selectbox("Direction", opts, index=dir_idx)
+        
+        f_entry = st.number_input("Entry Price", value=clean_val(trade_data.get("entry")), format="%.4f")
+        f_sl = st.number_input("Stop Loss (SL)", value=clean_val(trade_data.get("sl")), format="%.4f")
+
+    with col_f2:
+        f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
+        f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", trade_data.get("analysis_summary", "")))
 
         submit_save = st.form_submit_button("💾 Αποθήκευση στο Trade Log")
         
