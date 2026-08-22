@@ -176,6 +176,7 @@ if uploaded_files:
 
                     try:
             prompt = """
+            
         You are a Senior Crypto Price Action Scalper.
         STRICT PRICE ACTION RULES:
         1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL).
