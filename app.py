@@ -48,14 +48,12 @@ api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets els
 
 # Pydantic Schema
 class TradeSetup(BaseModel):
-    pair: str = Field(description="Το ζεύγος, π.χ. SUI/USDT ή SOL/USDT")
-    direction: str = Field(description="LONG ή SHORT")
-    entry: str = Field(description="Τιμή εισόδου")
-    sl: str = Field(description="Τιμή Stop Loss")
-    tp1: str = Field(description="Τιμή Take Profit 1")
-    tp2: str = Field(description="Τιμή Take Profit 2")
-    rsi_value: str = Field(description="Τιμή RSI αν εμφανίζεται")
-    analysis_summary: str = Field(description="Σύντομη περιγραφή Technical Analysis")
+    pair: str
+    direction: str  # Θα επιστρέφει "LONG", "SHORT", ή "NO TRADE"
+    entry: float
+    sl: float
+    tp1: float
+    reason: str     # Αιτιολογία για το trade ή γιατί δίνει NO TRADE
 
 # --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
 st.subheader("📊 Live TradingView Chart")
@@ -178,31 +176,18 @@ if uploaded_files:
 
                     prompt = """
 Είσαι ένας αυστηρός Scalping Technical Analyst.
-Ανάλυσε το γράφημα ΑΠΟΚΛΕΙΣΤΙΚΑ για ULTRA-SHORT SCALPING (Trades διάρκειας 15 λεπτών έως 2 ωρών).
+You are a Senior Crypto Price Action Scalper and Strict Risk Manager.
+Analyze the chart EXCLUSIVELY for ULTRA-SHORT SCALPING (1m-5m charts).
+Your primary job is NOT to find a trade in every chart, but to PROTECT capital by approving ONLY high-probability setups.
 
-ΑΥΣΤΗΡΟΙ ΚΑΝΟΝΕΣ:
-1. **Pair**: Διάβασε το ζεύγος ΑΚΡΙΒΩΣ όπως αναγράφεται πάνω αριστερά στο chart (π.χ. SUI/USDC ή SUI/USDT).
-2. **Direction**: 
-   - Ακολούθησε την τοπική τάση των κεριών (Price Action).
-   - Αν η τιμή κάνει Higher Highs/Lows -> LONG.
-   - Αν η τιμή κάνει Lower Highs/Lows -> SHORT.
-3. **Entry Price**: Χρησιμοποίησε ΑΚΡΙΒΩΣ την τιμή κλεισίματος (C / Close) που αναγράφεται πάνω αριστερά.
-4. **Take Profit (TP1) & Risk/Reward (RRR)**:
-   - Υπολόγισε το TP1 έτσι ώστε η απόσταση Entry-TP1 να είναι τουλάχιστον ΤΡΕΙΣ ΦΟΡΕΣ μεγαλύτερη από την απόσταση Entry-SL.
-   - **ΑΥΣΤΗΡΟΣ ΚΑΝΟΝΑΣ**: Εξασφάλισε ελάχιστο Risk/Reward Ratio **1:3** (π.χ. αν το ρίσκο/SL είναι $10, το προσδοκώμενο κέρδος/TP1 πρέπει να είναι τουλάχιστον $30).
-   - Αν η δομή της αγοράς δεν επιτρέπει RRR 1:3, προσαρμόσε το TP1 στο αμέσως επόμενο ισχυρό Resistance/Support επίπεδο για να το πετύχεις.
+STRICT PRICE ACTION RULES:
+1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL). Strictly NEVER take counter-trend trades.
+2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHoCH). Do NOT enter during low-volatility chop or ranges.
+3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools (major swing points). Do NOT place tight SLs on immediate candle wicks. Give the trade room to breathe.
+4. RISK/REWARD: Maintain a minimum Risk to Reward Ratio (RRR) of strictly 1:2.5.
+5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity or structure, return "NO TRADE" in the direction field, set entry/sl/tp1 to 0.0, and explain why in the reason field.
 
-ΜΗΝ δίνεις μακρινούς στόχους swing trading. Θέλουμε μόνο την αμέσως επόμενη μικρή κίνηση.
-
-Επίστρεψε ΑΠΟΚΛΕΙΣΤΙΚΑ και ΜΟΝΟ ένα έγκυρο JSON object:
-{
-  "pair": "SUI/USDC",
-  "direction": "LONG",
-  "entry": 0.0000,
-  "sl": 0.0000,
-  "tp1": 0.0000
-}
-"""
+Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
                     response = None
                     for attempt in range(4):
                         try:
