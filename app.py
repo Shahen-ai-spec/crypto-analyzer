@@ -175,7 +175,7 @@ if uploaded_files:
                     client = genai.Client(api_key=api_key)
 
                     try:
-        prompt = """
+            prompt = """
         You are a Senior Crypto Price Action Scalper.
         STRICT PRICE ACTION RULES:
         1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL).
