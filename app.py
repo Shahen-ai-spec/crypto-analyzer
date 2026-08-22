@@ -174,21 +174,18 @@ if uploaded_files:
                 try:
                     client = genai.Client(api_key=api_key)
 
-                    prompt = """
+                    try:
+        prompt = """
+        You are a Senior Crypto Price Action Scalper.
+        STRICT PRICE ACTION RULES:
+        1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL).
+        2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHOCH).
+        3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools.
+        4. RISK/REWARD: Maintain a minimum Risk to Reward Ratio (RRR) of strictly 1:2.5.
+        5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity, return "NO TRADE".
 
-You are a Senior Crypto Price Action Scalper and Strict Risk Manager.
-Analyze the chart EXCLUSIVELY for ULTRA-SHORT SCALPING (1m-5m charts).
-Your primary job is NOT to find a trade in every chart, but to PROTECT capital by approving ONLY high-probability setups.
-
-STRICT PRICE ACTION RULES:
-1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL). Strictly NEVER take counter-trend trades.
-2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHoCH). Do NOT enter during low-volatility chop or ranges.
-3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools (major swing points). Do NOT place tight SLs on immediate candle wicks. Give the trade room to breathe.
-4. RISK/REWARD: Maintain a minimum Risk to Reward Ratio (RRR) of strictly 1:2.5.
-5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity or structure, return "NO TRADE" in the direction field, set entry/sl/tp1 to 0.0, and explain why in the reason field.
-
-Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
-"""
+        Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
+        """
 
         response = client.models.generate_content(
             model='gemini-2.5-flash',
