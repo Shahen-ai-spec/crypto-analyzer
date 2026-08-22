@@ -236,29 +236,29 @@ if "parsed_trade" in st.session_state:
 
         submit_save = st.form_submit_button("💾 Αποθήκευση Trade")
 
-    if submit_save:
-        new_entry = {
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "Pair": f_pair,
-            "Direction": f_dir,
-            "Entry": f_entry,
-            "SL": f_sl,
-            "TP1": f_tp1,
-            "TP2": 0.0,
-            "Status": "Pending",
-            "Reason": f_reason
-        }
+if submit_save:
+    new_entry = {
+        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Pair": f_pair,
+        "Direction": f_dir,
+        "Entry": f_entry,
+        "SL": f_sl,
+        "TP1": f_tp1,
+        "TP2": 0.0,
+        "Status": "Pending",
+        "Reason": f_reason
+    }
 
-        # Φόρτωση ή δημιουργία του αρχείου log
-        if os.path.exists(LOG_FILE):
-            df_log = pd.read_csv(LOG_FILE)
-        else:
-            df_log = pd.DataFrame()
+    # Φόρτωση ή δημιουργία του αρχείου log
+    if os.path.exists(LOG_FILE):
+        df_log = pd.read_csv(LOG_FILE)
+    else:
+        df_log = pd.DataFrame()
 
-        # Προσθήκη της νέας εγγραφής και αποθήκευση
-        df_log = pd.concat([df_log, pd.DataFrame([new_entry])], ignore_index=True)
-        df_log.to_csv(LOG_FILE, index=False)
-        st.success("Το trade αποθηκεύτηκε επιτυχώς!")
+    # Προσθήκη της νέας εγγραφής και αποθήκευση
+    df_log = pd.concat([df_log, pd.DataFrame([new_entry])], ignore_index=True)
+    df_log.to_csv(LOG_FILE, index=False)
+    st.success("Το trade αποθηκεύτηκε επιτυχώς!")
             st.rerun()
 
 # --- LIVE TRADE TRACKER ---
