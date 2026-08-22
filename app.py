@@ -186,7 +186,7 @@ if uploaded_files:
             Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
             """
 
-          response = client.models.generate_content(
+            response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=processed_images + [prompt],
                 config=types.GenerateContentConfig(
