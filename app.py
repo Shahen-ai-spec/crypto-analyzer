@@ -175,7 +175,7 @@ if uploaded_files:
                     client = genai.Client(api_key=api_key)
 
                     prompt = """
-prompt = """
+
 You are a Senior Crypto Price Action Scalper and Strict Risk Manager.
 Analyze the chart EXCLUSIVELY for ULTRA-SHORT SCALPING (1m-5m charts).
 Your primary job is NOT to find a trade in every chart, but to PROTECT capital by approving ONLY high-probability setups.
