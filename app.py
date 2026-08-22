@@ -169,13 +169,16 @@ if uploaded_files:
     if st.button("🚀 Ανάλυση Chart", type="primary"):
         try:
             prompt = """
-            You are a Senior Crypto Price Action Scalper.
+            You are a Senior Crypto Price Action Scalper and Strict Risk Manager.
+            Analyze the chart EXCLUSIVELY for ULTRA-SHORT SCALPING (1m-5m charts).
+            Your primary job is NOT to find a trade in every chart, but to PROTECT capital by approving ONLY high-probability setups.
+
             STRICT PRICE ACTION RULES:
-            1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL).
-            2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHOCH).
-            3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools.
+            1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL). Strictly NEVER take counter-trend trades.
+            2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHoCH). Do NOT enter during low-volatility chop or ranges.
+            3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools (major swing points). Do NOT place tight SLs on immediate candle wicks. Give the trade room to breathe.
             4. RISK/REWARD: Maintain a minimum Risk to Reward Ratio (RRR) of strictly 1:2.5.
-            5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity, return "NO TRADE".
+            5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity or structure, return "NO TRADE" in the direction field, set entry/sl/tp1 to 0.0, and explain why in the reason field.
 
             Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
             """
@@ -191,10 +194,13 @@ if uploaded_files:
                 )
             )
             
-            st.session_state["parsed_trade"] = json.loads(response.text)
+            st.session_state["parsed_trade"] = response.parsed.model_dump()
             st.success("Η ανάλυση ολοκληρώθηκε!")
 
-        # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
+        except Exception as e:
+            st.error(f"Σφάλμα κατά την ανάλυση: {e}")
+
+# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state:
     trade_data = st.session_state["parsed_trade"]
     st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
@@ -218,15 +224,6 @@ if "parsed_trade" in st.session_state:
             f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", trade_data.get("analysis_summary", "")))
 
         submitted = st.form_submit_button("💾 Αποθήκευση Trade")
-
-        with col_f2:
-            f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
-            f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", trade_data.get("analysis_summary", "")))
-    with col_f2:
-        f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
-        f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", trade_data.get("analysis_summary", "")))
-
-        submit_save = st.form_submit_button("💾 Αποθήκευση στο Trade Log")
         
         if submit_save:
             new_entry = {
