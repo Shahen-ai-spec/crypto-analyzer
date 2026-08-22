@@ -194,17 +194,12 @@ if uploaded_files:
             st.session_state["parsed_trade"] = json.loads(response.text)
             st.success("Η ανάλυση ολοκληρώθηκε!")
 
-        except Exception as e:
-            st.error(f"Σφάλμα κατά την ανάλυση: {e}")
-    
-    def clean_val(val):
-        try:
-            match = re.search(r'\d+\.?\d*', str(val))
-            return float(match.group()) if match else 0.0
-        except Exception:
-            return 0.0
+        # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
+if "parsed_trade" in st.session_state:
+    trade_data = st.session_state["parsed_trade"]
+    st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
 
-   with st.form("confirm_trade_form"):
+    with st.form("confirm_trade_form"):
         col_f1, col_f2 = st.columns(2)
         
         with col_f1:
@@ -217,6 +212,12 @@ if uploaded_files:
             
             f_entry = st.number_input("Entry Price", value=clean_val(trade_data.get("entry")), format="%.4f")
             f_sl = st.number_input("Stop Loss (SL)", value=clean_val(trade_data.get("sl")), format="%.4f")
+
+        with col_f2:
+            f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
+            f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", trade_data.get("analysis_summary", "")))
+
+        submitted = st.form_submit_button("💾 Αποθήκευση Trade")
 
         with col_f2:
             f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
