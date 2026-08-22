@@ -21,9 +21,9 @@ def check_password():
 
     if not st.session_state["authenticated"]:
         st.title("🔒 Εφαρμογή Κλειδωμένη")
-        user_input = st.text_input("Gitbtc2026shahen:", type="password")
+        user_input = st.text_input("Εισάγετε τον κωδικό πρόσβασης:", type="password")
         if st.button("Σύνδεση"):
-            if user_input == "my_secret_code_123":  # <--- ΑΛΛΑΞΕ ΤΟ my_secret_code_123 ΜΕ ΤΟΝ ΚΩΔΙΚΟ ΣΟΥ
+            if user_input == "my_secret_code_123":  # <--- Gitbtc2026shahen
                 st.session_state["authenticated"] = True
                 st.rerun()
             else:
