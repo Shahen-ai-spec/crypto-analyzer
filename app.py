@@ -114,7 +114,7 @@ def check_trade_status(row):
     direction = str(row.get("Direction", "")).upper()
     current_status = str(row.get("Status", "Pending ⏳"))
     
-    # Αν έχει ήδη κριθεί το trade, μην ξανακάνεις API request
+    # Αν είναι ήδη WIN ή LOSS, μην αλλάζεις τίποτα
     if "WIN" in current_status or "LOSS" in current_status:
         return current_status
 
@@ -125,7 +125,7 @@ def check_trade_status(row):
         tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
         sl = float(str(row.get("SL", 0)).replace(",", "."))
         
-        # Καθαρισμός συμβόλου για το Public API της Bybit
+        # Καθαρισμός συμβόλου - Δοκιμή με USDT που έχει πάντα liquidity
         clean_symbol = pair.replace("USDC", "USDT")
         
         url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={clean_symbol}"
@@ -136,18 +136,17 @@ def check_trade_status(row):
             last_price = float(data["result"]["list"][0]["lastPrice"])
             
             if "LONG" in direction:
-                if tp1 > 0 and last_price >= tp1:
-                    return "WIN 🎯"
-                elif sl > 0 and last_price <= sl:
+                if sl > 0 and last_price <= sl:
                     return "LOSS ❌"
+                elif tp1 > 0 and last_price >= tp1:
+                    return "WIN 🎯"
             elif "SHORT" in direction:
-                if tp1 > 0 and last_price <= tp1:
-                    return "WIN 🎯"
-                elif sl > 0 and last_price >= sl:
+                if sl > 0 and last_price >= sl:
                     return "LOSS ❌"
+                elif tp1 > 0 and last_price <= tp1:
+                    return "WIN 🎯"
                     
             return f"Pending ⏳ ({last_price})"
-            
     except Exception:
         pass
         
