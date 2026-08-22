@@ -89,87 +89,48 @@ st.divider()
 
 # --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
 def check_trade_status(row):
-    pair = row.get("Pair")
+    pair = str(row.get("Pair", "")).replace("/", "").replace(" ", "").upper()
     direction = str(row.get("Direction", "")).upper()
-    current_status = row.get("Status", "Pending ⏳")
+    current_status = str(row.get("Status", "Pending ⏳"))
     
-    if "WIN" in str(current_status) or "LOSS" in str(current_status) or "TP" in str(current_status) or "SL" in str(current_status):
+    # Αν έχει ήδη κριθεί το trade, μην ξανακάνεις API request
+    if "WIN" in current_status or "LOSS" in current_status:
         return current_status
 
-    if not pair or str(pair).strip() == "" or str(pair) == "nan":
+    if not pair or pair == "NAN":
         return current_status
-
-    # Αρχικοποίηση CCXT Bybit
-    exchange = ccxt.bybit({'enableRateLimit': True})
 
     try:
         tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
         sl = float(str(row.get("SL", 0)).replace(",", "."))
+        
+        # Καθαρισμός συμβόλου για το Public API της Bybit
+        clean_symbol = pair.replace("USDC", "USDT")
+        
+        url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={clean_symbol}"
+        response = requests.get(url, timeout=3)
+        data = response.json()
+        
+        if data.get("retCode") == 0 and data["result"]["list"]:
+            last_price = float(data["result"]["list"][0]["lastPrice"])
+            
+            if "LONG" in direction:
+                if tp1 > 0 and last_price >= tp1:
+                    return "WIN 🎯"
+                elif sl > 0 and last_price <= sl:
+                    return "LOSS ❌"
+            elif "SHORT" in direction:
+                if tp1 > 0 and last_price <= tp1:
+                    return "WIN 🎯"
+                elif sl > 0 and last_price >= sl:
+                    return "LOSS ❌"
+                    
+            return f"Pending ⏳ ({last_price})"
+            
     except Exception:
-        return current_status
-
-    clean_pair = str(pair).replace("/", "").strip().upper()
-    base_asset = clean_pair.replace("USDC", "").replace("USDT", "")
-    
-    tickers_to_try = [
-        f"{base_asset}/USDT",
-        f"{base_asset}/USDC",
-        f"{base_asset}USDT",
-        f"{base_asset}USDC",
-        f"{base_asset}/USDT:USDT"
-    ]
-    
-    # Υπολογισμός Timestamp
-    since_timestamp = None
-    if "Date" in row and pd.notnull(row["Date"]):
-        try:
-            since_timestamp = int(pd.to_datetime(row["Date"]).timestamp() * 1000)
-        except Exception:
-            since_timestamp = None
-
-    for symbol in tickers_to_try:
-        try:
-            # 1. Έλεγχος με Ιστορικά Κεριά (OHLCV)
-            if since_timestamp:
-                ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', since=since_timestamp, limit=1000)
-                if ohlcv and len(ohlcv) > 0:
-                    for candle in ohlcv:
-                        c_high, c_low = float(candle[2]), float(candle[3])
-                        
-                        if "LONG" in direction:
-                            if tp1 > 0 and c_high >= tp1:
-                                return "WIN 🏆 (TP1)"
-                            if sl > 0 and c_low <= sl:
-                                return "LOSS ❌ (SL)"
-                        elif "SHORT" in direction:
-                            if tp1 > 0 and c_low <= tp1:
-                                return "WIN 🏆 (TP1)"
-                            if sl > 0 and c_high >= sl:
-                                return "LOSS ❌ (SL)"
-
-            # 2. Έλεγχος με Τρέχουσα Τιμή (Ticker Fallback)
-            ticker = exchange.fetch_ticker(symbol)
-            if ticker and 'last' in ticker and ticker['last'] is not None:
-                last_price = float(ticker['last'])
-
-                if "LONG" in direction:
-                    if tp1 > 0 and last_price >= tp1:
-                        return "WIN 🏆 (TP1)"
-                    if sl > 0 and last_price <= sl:
-                        return "LOSS ❌ (SL)"
-                elif "SHORT" in direction:
-                    if tp1 > 0 and last_price <= tp1:
-                        return "WIN 🏆 (TP1)"
-                    if sl > 0 and last_price >= sl:
-                        return "LOSS ❌ (SL)"
-
-                return "Pending ⏳"
-
-        except Exception:
-            continue
-
-    return "Pending ⏳"
-
+        pass
+        
+    return current_status
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
 uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="chart_uploader")
