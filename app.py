@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 st.set_page_config(page_title="PANDA CRYPTO Analyzer", page_icon="🐼", layout="wide")
 
 # --- ΑΣΦΑΛΕΙΑ / LOGIN SYSTEM ---
-MY_PASSWORD = "1234"  # <--- Βάλε ΕΔΩ τον κωδικό που θέλεις
+MY_PASSWORD = "1234"  # <--- Gitbtc2026shahen
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -25,12 +25,16 @@ if not st.session_state.authenticated:
     pwd_input = st.text_input("Εισάγετε τον κωδικό πρόσβασης:", type="password")
     
     if st.button("Σύνδεση"):
-        if pwd_input.strip() == Gitbtc2026shahen:
+        if pwd_input.strip() == MY_PASSWORD:
             st.session_state.authenticated = True
             st.rerun()
         else:
             st.error("Λάθος κωδικός!")
     st.stop()
+
+# --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ ΦΟΡΤΩΝΕΙ Η ΕΦΑΡΜΟΓΗ ---
+st.title("🐼 PANDA CRYPTO Analyzer")
+st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
 
 # --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ ΦΟΡΤΩΝΕΙ Η ΕΦΑΡΜΟΓΗ ---
 st.title("🐼 PANDA CRYPTO Analyzer")
