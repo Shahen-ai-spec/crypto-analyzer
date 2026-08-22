@@ -175,7 +175,7 @@ if uploaded_files:
                     client = genai.Client(api_key=api_key)
 
                     prompt = """
-Είσαι ένας αυστηρός Scalping Technical Analyst.
+prompt = """
 You are a Senior Crypto Price Action Scalper and Strict Risk Manager.
 Analyze the chart EXCLUSIVELY for ULTRA-SHORT SCALPING (1m-5m charts).
 Your primary job is NOT to find a trade in every chart, but to PROTECT capital by approving ONLY high-probability setups.
@@ -188,32 +188,7 @@ STRICT PRICE ACTION RULES:
 5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity or structure, return "NO TRADE" in the direction field, set entry/sl/tp1 to 0.0, and explain why in the reason field.
 
 Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
-                    response = None
-                    for attempt in range(4):
-                        try:
-                            response = client.models.generate_content(
-                                model='gemini-3.6-flash',
-                                contents=processed_images + [prompt],
-                                config=types.GenerateContentConfig(
-                                    temperature=0.0,
-                                    seed=42,
-                                    response_mime_type="application/json",
-                                    response_schema=TradeSetup,
-                                )
-                            )
-                            break
-                        except Exception as e:
-                            if ("429" in str(e) or "503" in str(e)) and attempt < 3:
-                                time.sleep(5 * (attempt + 1))
-                                continue
-                            else:
-                                raise e
-                    
-                    st.session_state["parsed_trade"] = json.loads(response.text)
-                    st.success("Η ανάλυση ολοκληρώθηκε!")
-
-                except Exception as e:
-                    st.error(f"Σφάλμα κατά την ανάλυση: {e}")
+"""
 
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state:
