@@ -190,12 +190,13 @@ STRICT PRICE ACTION RULES:
 Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
 """
 
-    # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
-    
-    if "parsed_trade" in st.session_state:
-        trade_data = st.session_state["parsed_trade"]
+    except Exception as e:
+        st.error(f"Σφάλμα κατά την ανάλυση: {e}")
 
-        st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
+# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
+if "parsed_trade" in st.session_state:
+    trade_data = st.session_state["parsed_trade"]
+    st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
     
     def clean_val(val):
         try:
