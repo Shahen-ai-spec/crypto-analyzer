@@ -12,6 +12,9 @@ from google.genai import types
 from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
 
+# Αρχικοποίηση του client για το google-genai SDK
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+
 st.set_page_config(page_title="PANDA CRYPTO Analyzer", page_icon="🐼", layout="wide")
 
 # --- ΑΣΦΑΛΕΙΑ / LOGIN SYSTEM ---
