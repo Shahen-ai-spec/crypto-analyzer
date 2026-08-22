@@ -36,11 +36,6 @@ if not st.session_state.authenticated:
 st.title("🐼 PANDA CRYPTO Analyzer")
 st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
 
-# --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ ΦΟΡΤΩΝΕΙ Η ΕΦΑΡΜΟΓΗ ---
-st.title("🐼 PANDA CRYPTO Analyzer")
-st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
-st.title("🐼 PANDA CRYPTO Analyzer")
-st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
 
 LOG_FILE = "trade_log.csv"
 
