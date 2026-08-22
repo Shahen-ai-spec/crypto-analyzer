@@ -105,25 +105,28 @@ final_html = tv_widget_html.replace("SYMBOL_PLACEHOLDER", tv_symbol).replace("TI
 st.components.v1.html(final_html, height=500)
 st.divider()
 
-# --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ ---
+# --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ (ΔΙΟΡΘΩΜΕΝΗ) ---
 def check_trade_status(row):
-    pair = str(row.get("Pair", "")).replace("/", "").replace(" ", "").upper()
+    pair = str(row.get("Pair", "")).replace("/", "").replace("-", "").replace(" ", "").upper()
     direction = str(row.get("Direction", "")).upper()
     current_status = str(row.get("Status", "Pending ⏳"))
     
     if "WIN" in current_status or "LOSS" in current_status:
         return current_status
 
-    if not pair or pair == "NAN":
+    if not pair or pair == "NAN" or direction == "NO TRADE":
         return current_status
 
     try:
         tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
         sl = float(str(row.get("SL", 0)).replace(",", "."))
-        clean_symbol = pair.replace("USDC", "USDT")
+        
+        # Καθαρισμός συμβόλου για Bybit Linear Tickers
+        clean_symbol = pair if pair.endswith("USDT") or pair.endswith("USDC") else f"{pair}USDT"
+        clean_symbol = clean_symbol.replace("USDC", "USDT")
         
         url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={clean_symbol}"
-        response = requests.get(url, timeout=3)
+        response = requests.get(url, timeout=5)
         data = response.json()
         
         if data.get("retCode") == 0 and data["result"]["list"]:
@@ -165,18 +168,18 @@ if uploaded_files:
 
     if st.button("🚀 Ανάλυση Chart", type="primary"):
         try:
-            # Πιο ισορροπημένο Prompt για να δίνει trades
-            # Prompt με RRR 1:3
+            # Διορθωμένο Prompt με RRR 1:3 και Liquidity Buffer για αποφυγή SL Sweeps
             prompt = """
-            You are a Crypto Price Action Scalper for short timeframes (1m-5m).
-            Analyze the chart image to find the best immediate trade setup (LONG or SHORT).
+            You are a Senior Price Action & Liquidity Scalper.
+            Analyze the chart image to find the best immediate trade setup (LONG or SHORT) with strict risk controls.
 
             RULES:
-            1. Identify current market structure, trend, and recent swing highs/lows.
-            2. Provide exact numerical values for Entry, Stop Loss (SL), and Take Profit (TP1).
-            3. Target a strict Risk-to-Reward Ratio of at least 1:3 (RRR >= 1:3).
-            4. Only return "NO TRADE" if the chart is completely blurry, unreadable, or lacks any clear setup to achieve 1:3 RRR.
-            5. Write a short reason for your decision.
+            1. MARKET STRUCTURE: Identify current trend, key Break of Structure (BOS), or Change of Character (CHoCH).
+            2. STOP LOSS PLACEMENT: Do NOT place Stop Loss tightly at immediate candle wicks. Add a wide safety buffer beyond major swing points/liquidity pools to avoid liquidity sweeps.
+            3. RISK TO REWARD: Ensure Take Profit (TP1) achieves at least a 1:3 Risk-to-Reward Ratio (RRR >= 1:3) relative to the entry and buffered SL.
+            4. Provide exact values for Entry, SL, and TP1.
+            5. Return "NO TRADE" only if the chart structure is completely unreadable or an explicit 1:3 setup with safe SL cannot be formed.
+            6. Write a brief explanation for your setup.
 
             Read the exact crypto pair symbol from the top left of the chart.
             """
