@@ -244,17 +244,21 @@ if "parsed_trade" in st.session_state:
             "Entry": f_entry,
             "SL": f_sl,
             "TP1": f_tp1,
-            "TP2": 0.0,  # Ορίζεται σε 0.0 αφού πλέον έχουμε μόνο TP1
+            "TP2": 0.0,
             "Status": "Pending",
             "Reason": f_reason
         }
 
+        # Φόρτωση ή δημιουργία του αρχείου log
+        if os.path.exists(LOG_FILE):
             df_log = pd.read_csv(LOG_FILE)
-            df_log = pd.concat([pd.DataFrame([new_entry]), df_log], ignore_index=True)
-            df_log.to_csv(LOG_FILE, index=False)
-            
-            del st.session_state["parsed_trade"]
-            st.toast("Το trade αποθηκεύτηκε επιτυχώς!")
+        else:
+            df_log = pd.DataFrame()
+
+        # Προσθήκη της νέας εγγραφής και αποθήκευση
+        df_log = pd.concat([df_log, pd.DataFrame([new_entry])], ignore_index=True)
+        df_log.to_csv(LOG_FILE, index=False)
+        st.success("Το trade αποθηκεύτηκε επιτυχώς!")
             st.rerun()
 
 # --- LIVE TRADE TRACKER ---
