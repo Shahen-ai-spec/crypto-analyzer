@@ -5,6 +5,7 @@ import json
 import ccxt
 import time
 import re
+import requests
 import streamlit.components.v1 as components
 from datetime import datetime
 from google import genai
@@ -39,12 +40,11 @@ if not st.session_state.authenticated:
 st.title("🐼 PANDA CRYPTO Analyzer")
 st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
 
-
 LOG_FILE = "trade_log.csv"
 
 # Αρχικοποίηση CSV αν δεν υπάρχει
 if not os.path.exists(LOG_FILE):
-    df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
+    df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Reason"])
     df_init.to_csv(LOG_FILE, index=False)
 
 api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else st.sidebar.text_input("Gemini API Key", type="password")
@@ -115,7 +115,6 @@ def check_trade_status(row):
     direction = str(row.get("Direction", "")).upper()
     current_status = str(row.get("Status", "Pending ⏳"))
     
-    # Αν είναι ήδη WIN ή LOSS, μην αλλάζεις τίποτα
     if "WIN" in current_status or "LOSS" in current_status:
         return current_status
 
@@ -126,7 +125,6 @@ def check_trade_status(row):
         tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
         sl = float(str(row.get("SL", 0)).replace(",", "."))
         
-        # Καθαρισμός συμβόλου - Δοκιμή με USDT που έχει πάντα liquidity
         clean_symbol = pair.replace("USDC", "USDT")
         
         url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={clean_symbol}"
@@ -152,6 +150,7 @@ def check_trade_status(row):
         pass
         
     return current_status
+
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
 uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="chart_uploader")
@@ -236,30 +235,29 @@ if "parsed_trade" in st.session_state:
 
         submit_save = st.form_submit_button("💾 Αποθήκευση Trade")
 
-if submit_save:
-    new_entry = {
-        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Pair": f_pair,
-        "Direction": f_dir,
-        "Entry": f_entry,
-        "SL": f_sl,
-        "TP1": f_tp1,
-        "TP2": 0.0,
-        "Status": "Pending",
-        "Reason": f_reason
-    }
+    if submit_save:
+        new_entry = {
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Pair": f_pair,
+            "Direction": f_dir,
+            "Entry": f_entry,
+            "SL": f_sl,
+            "TP1": f_tp1,
+            "TP2": 0.0,
+            "Status": "Pending",
+            "Reason": f_reason
+        }
 
-    # Φόρτωση ή δημιουργία του αρχείου log
-    if os.path.exists(LOG_FILE):
-        df_log = pd.read_csv(LOG_FILE)
-    else:
-        df_log = pd.DataFrame()
+        if os.path.exists(LOG_FILE):
+            df_log = pd.read_csv(LOG_FILE)
+        else:
+            df_log = pd.DataFrame()
 
-    # Προσθήκη της νέας εγγραφής και αποθήκευση
-    df_log = pd.concat([df_log, pd.DataFrame([new_entry])], ignore_index=True)
-    df_log.to_csv(LOG_FILE, index=False)
-    st.success("Το trade αποθηκεύτηκε επιτυχώς!")
-    st.rerun()
+        df_log = pd.concat([df_log, pd.DataFrame([new_entry])], ignore_index=True)
+        df_log.to_csv(LOG_FILE, index=False)
+        st.success("Το trade αποθηκεύτηκε επιτυχώς!")
+        st.rerun()
+
 # --- LIVE TRADE TRACKER ---
 st.divider()
 st.subheader("📜 Live Trade Log Tracker")
@@ -278,7 +276,7 @@ with col_a:
 st.dataframe(df_history, use_container_width=True)
 
 if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_btn"):
-    df_empty = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Analysis"])
+    df_empty = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Reason"])
     df_empty.to_csv(LOG_FILE, index=False)
     st.rerun()
 
