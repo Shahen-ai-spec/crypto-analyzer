@@ -234,20 +234,20 @@ if "parsed_trade" in st.session_state:
             f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
             f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", trade_data.get("analysis_summary", "")))
 
-        submitted = st.form_submit_button("💾 Αποθήκευση Trade")
-        
-        if submit_save:
-            new_entry = {
-                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "Pair": f_pair,
-                "Direction": f_dir,
-                "Entry": f_entry,
-                "SL": f_sl,
-                "TP1": f_tp1,
-                "TP2": f_tp2,
-                "Status": "Pending ⏳",
-                "Analysis": f_analysis
-            }
+        submit_save = st.form_submit_button("💾 Αποθήκευση Trade")
+
+    if submit_save:
+        new_entry = {
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Pair": f_pair,
+            "Direction": f_dir,
+            "Entry": f_entry,
+            "SL": f_sl,
+            "TP1": f_tp1,
+            "TP2": 0.0,  # Ορίζεται σε 0.0 αφού πλέον έχουμε μόνο TP1
+            "Status": "Pending",
+            "Reason": f_reason
+        }
 
             df_log = pd.read_csv(LOG_FILE)
             df_log = pd.concat([pd.DataFrame([new_entry]), df_log], ignore_index=True)
