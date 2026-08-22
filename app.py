@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 st.set_page_config(page_title="PANDA CRYPTO Analyzer", page_icon="🐼", layout="wide")
 
 # --- ΑΣΦΑΛΕΙΑ / LOGIN SYSTEM ---
-MY_PASSWORD = "1234"  # <--- Gitbtc2026shahen
+MY_PASSWORD = "1234"  # <--- "Gitbtc2026shahen"
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
