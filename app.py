@@ -188,10 +188,10 @@ STRICT PRICE ACTION RULES:
 5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity or structure, return "NO TRADE" in the direction field, set entry/sl/tp1 to 0.0, and explain why in the reason field.
 
 Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
-"""
+    """
 
-except Exception as e:
-    st.error(f"Σφάλμα κατά την ανάλυση: {e}")
+    except Exception as e:
+        st.error(f"Σφάλμα κατά την ανάλυση: {e}")
 
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state:
