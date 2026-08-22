@@ -13,6 +13,26 @@ from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
 
 st.set_page_config(page_title="PANDA CRYPTO Analyzer", page_icon="🐼", layout="wide")
+
+# --- ΑΣΦΑΛΕΙΑ / LOGIN SYSTEM ---
+def check_password():
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+
+    if not st.session_state["authenticated"]:
+        st.title("🔒 Εφαρμογή Κλειδωμένη")
+        user_input = st.text_input("Gitbtc2026shahen:", type="password")
+        if st.button("Σύνδεση"):
+            if user_input == "my_secret_code_123":  # <--- ΑΛΛΑΞΕ ΤΟ my_secret_code_123 ΜΕ ΤΟΝ ΚΩΔΙΚΟ ΣΟΥ
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Λάθος κωδικός!")
+        return False
+    return True
+
+if not check_password():
+    st.stop()
 st.title("🐼 PANDA CRYPTO Analyzer")
 st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
 
