@@ -166,6 +166,7 @@ if uploaded_files:
     if st.button("🚀 Ανάλυση Chart", type="primary"):
         try:
             # Πιο ισορροπημένο Prompt για να δίνει trades
+            # Prompt με RRR 1:3
             prompt = """
             You are a Crypto Price Action Scalper for short timeframes (1m-5m).
             Analyze the chart image to find the best immediate trade setup (LONG or SHORT).
@@ -173,8 +174,8 @@ if uploaded_files:
             RULES:
             1. Identify current market structure, trend, and recent swing highs/lows.
             2. Provide exact numerical values for Entry, Stop Loss (SL), and Take Profit (TP1).
-            3. Target a realistic Risk-to-Reward Ratio (RRR ~ 1:1.5 to 1:2+).
-            4. Only return "NO TRADE" if the chart is completely blurry, unreadable, or totally flat without structure.
+            3. Target a strict Risk-to-Reward Ratio of at least 1:3 (RRR >= 1:3).
+            4. Only return "NO TRADE" if the chart is completely blurry, unreadable, or lacks any clear setup to achieve 1:3 RRR.
             5. Write a short reason for your decision.
 
             Read the exact crypto pair symbol from the top left of the chart.
