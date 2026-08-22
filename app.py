@@ -259,8 +259,7 @@ if submit_save:
     df_log = pd.concat([df_log, pd.DataFrame([new_entry])], ignore_index=True)
     df_log.to_csv(LOG_FILE, index=False)
     st.success("Το trade αποθηκεύτηκε επιτυχώς!")
-            st.rerun()
-
+    st.rerun()
 # --- LIVE TRADE TRACKER ---
 st.divider()
 st.subheader("📜 Live Trade Log Tracker")
