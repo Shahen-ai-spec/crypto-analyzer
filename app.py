@@ -52,11 +52,11 @@ api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets els
 # Pydantic Schema
 class TradeSetup(BaseModel):
     pair: str
-    direction: str  # Θα επιστρέφει "LONG", "SHORT", ή "NO TRADE"
+    direction: str  # "LONG", "SHORT", ή "NO TRADE"
     entry: float
     sl: float
     tp1: float
-    reason: str     # Αιτιολογία για το trade ή γιατί δίνει NO TRADE
+    reason: str     # Αιτιολογία για το trade
 
 # --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
 st.subheader("📊 Live TradingView Chart")
@@ -78,7 +78,6 @@ with col_tv1:
 with col_tv2:
     timeframe = st.selectbox("Timeframe:", ["1", "3", "5", "15", "60", "240", "D"], index=2, key="tv_tf_select")
 
-# Ορισμός του HTML καθαρά χωρίς f-string για αποφυγή syntax errors
 tv_widget_html = """
 <div class="tradingview-widget-container" style="height:500px;width:100%;">
   <div id="tradingview_widget" style="height:500px;width:100%;"></div>
@@ -102,10 +101,7 @@ tv_widget_html = """
 </div>
 """
 
-# Αντικατάσταση μεταβλητών
 final_html = tv_widget_html.replace("SYMBOL_PLACEHOLDER", tv_symbol).replace("TIMEFRAME_PLACEHOLDER", str(timeframe))
-
-# Εμφάνιση Widget
 st.components.v1.html(final_html, height=500)
 st.divider()
 
@@ -124,7 +120,6 @@ def check_trade_status(row):
     try:
         tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
         sl = float(str(row.get("SL", 0)).replace(",", "."))
-        
         clean_symbol = pair.replace("USDC", "USDT")
         
         url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={clean_symbol}"
@@ -170,27 +165,26 @@ if uploaded_files:
 
     if st.button("🚀 Ανάλυση Chart", type="primary"):
         try:
+            # Πιο ισορροπημένο Prompt για να δίνει trades
             prompt = """
-            You are a Senior Crypto Price Action Scalper and Strict Risk Manager.
-            Analyze the chart EXCLUSIVELY for ULTRA-SHORT SCALPING (1m-5m charts).
-            Your primary job is NOT to find a trade in every chart, but to PROTECT capital by approving ONLY high-probability setups.
+            You are a Crypto Price Action Scalper for short timeframes (1m-5m).
+            Analyze the chart image to find the best immediate trade setup (LONG or SHORT).
 
-            STRICT PRICE ACTION RULES:
-            1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL). Strictly NEVER take counter-trend trades.
-            2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHoCH). Do NOT enter during low-volatility chop or ranges.
-            3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools (major swing points). Do NOT place tight SLs on immediate candle wicks. Give the trade room to breathe.
-            4. RISK/REWARD: Maintain a minimum Risk to Reward Ratio (RRR) of strictly 1:2.5.
-            5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity or structure, return "NO TRADE" in the direction field, set entry/sl/tp1 to 0.0, and explain why in the reason field.
+            RULES:
+            1. Identify current market structure, trend, and recent swing highs/lows.
+            2. Provide exact numerical values for Entry, Stop Loss (SL), and Take Profit (TP1).
+            3. Target a realistic Risk-to-Reward Ratio (RRR ~ 1:1.5 to 1:2+).
+            4. Only return "NO TRADE" if the chart is completely blurry, unreadable, or totally flat without structure.
+            5. Write a short reason for your decision.
 
-            Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
+            Read the exact crypto pair symbol from the top left of the chart.
             """
 
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=processed_images + [prompt],
                 config=types.GenerateContentConfig(
-                    temperature=0.0,
-                    seed=42,
+                    temperature=0.2,
                     response_mime_type="application/json",
                     response_schema=TradeSetup,
                 )
@@ -231,7 +225,7 @@ if "parsed_trade" in st.session_state:
 
         with col_f2:
             f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
-            f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", trade_data.get("analysis_summary", "")))
+            f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", ""))
 
         submit_save = st.form_submit_button("💾 Αποθήκευση Trade")
 
