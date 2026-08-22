@@ -13,28 +13,9 @@ from google.genai import types
 from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
 
-# Αρχικοποίηση του client για το google-genai SDK
-client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-st.set_page_config(page_title="PANDA CRYPTO Analyzer", page_icon="🐼", layout="wide")
-
-# --- ΑΣΦΑΛΕΙΑ / LOGIN SYSTEM ---
-MY_PASSWORD = "Gitbtc2026shahen"
-
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    st.title("🔒 Εφαρμογή Κλειδωμένη")
-    pwd_input = st.text_input("Εισάγετε τον κωδικό πρόσβασης:", type="password")
     
-    if st.button("Σύνδεση"):
-        if pwd_input.strip() == MY_PASSWORD:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("Λάθος κωδικός!")
-    st.stop()
+    
 
 # --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ ΦΟΡΤΩΝΕΙ Η ΕΦΑΡΜΟΓΗ ---
 st.title("🐼 PANDA CRYPTO Analyzer")
