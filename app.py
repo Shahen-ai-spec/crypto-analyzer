@@ -166,47 +166,36 @@ if uploaded_files:
         with cols[idx]:
             st.image(img, caption=f"Εικόνα {idx+1}", use_container_width=True)
 
-    if st.button("🚀 Έναρξη Ανάλυσης Chart", key="analyze_btn_main"):
-        if not api_key:
-            st.error("Δεν βρέθηκε API Key!")
-        else:
-            with st.spinner("Γίνεται ανάλυση με το Gemini 3.6 Flash..."):
-                try:
-                    client = genai.Client(api_key=api_key)
+    if st.button("🚀 Ανάλυση Chart", type="primary"):
+        try:
+            prompt = """
+            You are a Senior Crypto Price Action Scalper.
+            STRICT PRICE ACTION RULES:
+            1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL).
+            2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHOCH).
+            3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools.
+            4. RISK/REWARD: Maintain a minimum Risk to Reward Ratio (RRR) of strictly 1:2.5.
+            5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity, return "NO TRADE".
 
-     try:
-        prompt = """
-        You are a Senior Crypto Price Action Scalper.
-        STRICT PRICE ACTION RULES:
-        1. TREND ALIGNMENT: Identify market structure (HH/HL or LH/LL).
-        2. MARKET STRUCTURE: Requires a clear Break of Structure (BOS) or Change of Character (CHOCH).
-        3. STOP LOSS & LIQUIDITY: Stop Loss MUST be placed beyond key liquidity pools.
-        4. RISK/REWARD: Maintain a minimum Risk to Reward Ratio (RRR) of strictly 1:2.5.
-        5. NO TRADE MANDATE: If the chart lacks 8/10 setup clarity, return "NO TRADE".
+            Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
+            """
 
-        Pair: Read the exact trading pair from the top-left of the chart (e.g., SUI/USDT).
-        """
-
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=processed_images + [prompt],
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                seed=42,
-                response_mime_type="application/json",
-                response_schema=TradeSetup,
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=processed_images + [prompt],
+                config=types.GenerateContentConfig(
+                    temperature=0.0,
+                    seed=42,
+                    response_mime_type="application/json",
+                    response_schema=TradeSetup,
+                )
             )
-        )
-        
-        st.session_state["parsed_trade"] = json.loads(response.text)
-        st.success("Η ανάλυση ολοκληρώθηκε!")
+            
+            st.session_state["parsed_trade"] = json.loads(response.text)
+            st.success("Η ανάλυση ολοκληρώθηκε!")
 
-    except Exception as e:
-        st.error(f"Σφάλμα κατά την ανάλυση: {e}")
-# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
-if "parsed_trade" in st.session_state:
-    trade_data = st.session_state["parsed_trade"]
-    st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
+        except Exception as e:
+            st.error(f"Σφάλμα κατά την ανάλυση: {e}")
     
     def clean_val(val):
         try:
