@@ -12,7 +12,6 @@ from google import genai
 from google.genai import types
 from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
-
 # --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ ΦΟΡΤΩΝΕΙ Η ΕΦΑΡΜΟΓΗ ---
 st.title("🐼 PANDA CRYPTO Analyzer")
 st.caption("AI-Powered Ultra-Short Scalping & Position Risk Calculator")
