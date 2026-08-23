@@ -23,7 +23,9 @@ if not os.path.exists(LOG_FILE):
     df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Reason"])
     df_init.to_csv(LOG_FILE, index=False)
 
-api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else st.sidebar.text_input("Gemini API Key", type="password")
+# Διάβασμα του API Key απευθείας από τα Secrets
+api_key = st.secrets.get("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key)
 
 # Pydantic Schema
 class TradeSetup(BaseModel):
