@@ -117,26 +117,25 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 # --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (UI) ---
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
-# Αυτόματη μετατροπή / σε - και USDT σε USD
 user_input = st.text_input(
     "Γράψε Ticker (π.χ. SOL-USD, ENA-USD ή ENA/USDT):", value="SOL-USD"
 )
 selected_coin = (
     user_input.strip().upper().replace("/", "-").replace("-USDT", "-USD")
 )
-selected_coin = user_input.upper().replace("-USDT", "-USD")
 
 if st.button("Ανάλυση"):
     analysis = get_auto_analysis(selected_coin)
     if analysis:
         st.write(f"**Νόμισμα:** {selected_coin}")
         st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
-        st.write(f"**Πρόταση (SMA20):** {analysis['direction']}")
+        st.write(f"**Πρόταση:** {analysis['direction']}")
+        st.write(f"**RSI (14):** {analysis['rsi']}")
+        st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
         st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
         st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
     else:
         st.error("Αποτυχία λήψης δεδομένων.")
-
 
 
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
