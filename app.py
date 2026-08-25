@@ -85,20 +85,11 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 # --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) ---
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
-selected_coin = st.selectbox(
-    "Επίλεξε Νόμισμα:",
-    [
-        "SOL-USD",
-        "BTC-USD",
-        "ETH-USD",
-        "XRP-USD",
-        "ADA-USD",
-        "AVAX-USD",
-        "DOT-USD",
-        "SUI-USD",
-    ],
-    index=0,
-)
+# Αντί για επιλογή από λίστα, ελεύθερο πεδίο πληκτρολόγησης
+selected_coin = st.text_input(
+    "Γράψε Ticker (π.χ. SOL-USD, BTC-USD, PEPE-USD):", value="SOL-USD"
+).upper()
+
 
 if st.button("Ανάλυση"):
     analysis = get_auto_analysis(selected_coin)
