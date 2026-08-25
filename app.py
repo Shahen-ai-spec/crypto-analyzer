@@ -125,7 +125,7 @@ def get_auto_analysis(symbol):
     
         return None
 
-# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) ---
+#  ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) 
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 if st.button("Ανάλυση SOL/USDT"):
     analysis = get_auto_analysis("SOLUSDT")
