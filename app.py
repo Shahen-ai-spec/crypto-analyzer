@@ -82,14 +82,14 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
         st.error(f"Error: {str(e)}")
     return None
     
-# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) ---
+# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (UI) ---
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
-# Αντί για επιλογή από λίστα, ελεύθερο πεδίο πληκτρολόγησης
-selected_coin = st.text_input(
-    "Γράψε Ticker (π.χ. SOL-USD, BTC-USD, PEPE-USD):", value="SOL-USD"
-).upper()
-
+# Ελεύθερο πεδίο πληκτρολόγησης με αυτόματη μετατροπή USDT -> USD
+user_input = st.text_input(
+    "Γράψε Ticker (π.χ. SOL-USD, ENA-USD ή ENA-USDT):", value="SOL-USD"
+)
+selected_coin = user_input.upper().replace("-USDT", "-USD")
 
 if st.button("Ανάλυση"):
     analysis = get_auto_analysis(selected_coin)
