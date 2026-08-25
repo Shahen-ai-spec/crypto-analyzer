@@ -37,101 +37,50 @@ class TradeSetup(BaseModel):
     reason: str     # Αιτιολογία για το trade
 
 # --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
-st.subheader("📊 Live TradingView Chart")
-
-default_symbol = "BYBIT:SUIUSDT"
-if os.path.exists(LOG_FILE):
-    try:
-        df_temp = pd.read_csv(LOG_FILE)
-        if not df_temp.empty and "Pair" in df_temp.columns:
-            last_pair = str(df_temp.iloc[0]["Pair"]).replace("/", "").upper().strip()
-            if last_pair and last_pair != "NAN":
-                default_symbol = f"BYBIT:{last_pair}"
-    except Exception:
-        pass
-
-col_tv1, col_tv2 = st.columns([3, 1])
-with col_tv1:
-    tv_symbol = st.text_input("Σύμβολο TradingView:", value=default_symbol, key="tv_symbol_input")
-with col_tv2:
-    timeframe = st.selectbox("Timeframe:", ["1", "3", "5", "15", "60", "240", "D"], index=2, key="tv_tf_select")
-
-tv_widget_html = """
-<div class="tradingview-widget-container" style="height:500px;width:100%;">
-  <div id="tradingview_widget" style="height:500px;width:100%;"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <script type="text/javascript">
-  new TradingView.widget({
-    "autosize": true,
-    "symbol": "SYMBOL_PLACEHOLDER",
-    "interval": "TIMEFRAME_PLACEHOLDER",
-    "timezone": "Europe/Athens",
-    "theme": "dark",
-    "style": "1",
-    "locale": "el",
-    "toolbar_bg": "#f1f3f6",
-    "enable_publishing": false,
-    "hide_legend": false,
-    "studies": [],
-    "container_id": "tradingview_widget"
-  });
-  </script>
-</div>
-"""
-
-final_html = tv_widget_html.replace("SYMBOL_PLACEHOLDER", tv_symbol).replace("TIMEFRAME_PLACEHOLDER", str(timeframe))
-st.components.v1.html(final_html, height=500)
-st.divider()
-
-# --- ΣΥΝΑΡΤΗΣΗ ΑΥΤΟΜΑΤΟΥ ΥΠΟΛΟΓΙΣΜΟΥ ΣΗΜΑΤΟΣ (BYBIT) ---
 def get_auto_analysis(symbol):
     try:
-        url = f"https://api.bybit.com/v5/market/kline?category=linear&symbol={symbol}&interval=60&limit=50"
-
-        # Προσθήκη headers για προσπέραση τυχόν μπλοκαρίσματος
+        # Κλήση στο API της Binance (δεν μπλοκάρει τους servers του Streamlit)
+        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=50"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
 
         res = requests.get(url, headers=headers, timeout=5)
 
-        # Έλεγχος αν η απάντηση είναι πράγματι JSON
         if res.status_code == 200:
-            data = res.json()
-            if data.get("retCode") == 0 and data["result"]["list"]:
-                klines = data["result"]["list"]
-                close_prices = [float(k[4]) for k in klines]
-                high_prices = [float(k[2]) for k in klines]
-                low_prices = [float(k[3]) for k in klines]
+            klines = res.json()
+            # Στην Binance: index 4=Close, 2=High, 3=Low
+            close_prices = [float(k[4]) for k in klines]
+            high_prices = [float(k[2]) for k in klines]
+            low_prices = [float(k[3]) for k in klines]
 
-                current_price = close_prices[0]
-                recent_high = max(high_prices[:24])
-                recent_low = min(low_prices[:24])
+            # Τα δεδομένα της Binance έρχονται με παλαιότερη σειρά (τελευταίο στοιχείο = τρέχουσα τιμή)
+            current_price = close_prices[-1]
+            recent_high = max(high_prices[-24:])
+            recent_low = min(low_prices[-24:])
 
-                sma20 = sum(close_prices[:20]) / 20
+            sma20 = sum(close_prices[-20:]) / 20
 
-                if current_price > sma20:
-                    direction = "LONG"
-                    tp1 = round(
-                        current_price + (recent_high - current_price) * 0.5, 2
-                    )
-                    sl = round(recent_low, 2)
-                else:
-                    direction = "SHORT"
-                    tp1 = round(
-                        current_price - (current_price - recent_low) * 0.5, 2
-                    )
-                    sl = round(recent_high, 2)
-
-                return {
-                    "price": current_price,
-                    "direction": direction,
-                    "tp1": tp1,
-                    "sl": sl,
-                    "sma20": round(sma20, 2),
-                }
+            if current_price > sma20:
+                direction = "LONG"
+                tp1 = round(
+                    current_price + (recent_high - current_price) * 0.5, 2
+                )
+                sl = round(recent_low, 2)
             else:
-                st.error(f"Bybit API Error: {data.get('retMsg')}")
+                direction = "SHORT"
+                tp1 = round(
+                    current_price - (current_price - recent_low) * 0.5, 2
+                )
+                sl = round(recent_high, 2)
+
+            return {
+                "price": current_price,
+                "direction": direction,
+                "tp1": tp1,
+                "sl": sl,
+                "sma20": round(sma20, 2),
+            }
         else:
             st.error(f"HTTP Error {res.status_code}: {res.text[:100]}")
     except Exception as e:
