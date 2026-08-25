@@ -1,49 +1,95 @@
-import streamlit as st
-import pandas as pd
-import os
 import json
-import ccxt
-import time
+import os
 import re
-import requests
-import streamlit.components.v1 as components
+import time
 from datetime import datetime
-from google import genai
-from google.genai import types
+
+import ccxt
+import pandas as pd
 from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
+import requests
+import streamlit as st
+import streamlit.components.v1 as components
+import yfinance as yf
+from google import genai
+from google.genai import types
+
 # --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ ΦΟΡΤΩΝΕΙ Η ΕΦΑΡΜΟΓΗ ---
 st.title("🐼 PANDA CRYPTO Analyzer")
-
 
 LOG_FILE = "trade_log.csv"
 
 # Αρχικοποίηση CSV αν δεν υπάρχει
 if not os.path.exists(LOG_FILE):
-    df_init = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Reason"])
+    df_init = pd.DataFrame(
+        columns=[
+            "Date",
+            "Pair",
+            "Direction",
+            "Entry",
+            "SL",
+            "TP1",
+            "TP2",
+            "Status",
+            "Reason",
+        ]
+    )
     df_init.to_csv(LOG_FILE, index=False)
 
 # Διάβασμα του API Key απευθείας από τα Secrets
 api_key = st.secrets.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
 
-# Pydantic Schema
+
+# Pydantic Schema για το Gemini AI
 class TradeSetup(BaseModel):
     pair: str
     direction: str  # "LONG", "SHORT", ή "NO TRADE"
     entry: float
     sl: float
     tp1: float
-    reason: str     # Αιτιολογία για το trade
-
-# --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
-import yfinance as yf
+    reason: str  # Αιτιολογία για το trade
 
 
-import pandas as pd
-import yfinance as yf
+# --- ΒΟΗΘΗΤΙΚΗ ΣΥΝΑΡΤΗΣΗ ΕΛΕΓΧΟΥ LIVE STATUS (CCXT) ---
+def check_trade_status(row):
+    """Ελέγχει live αν ένα trade χτύπησε TP1 ή SL χρησιμοποιώντας το CCXT (Bybit/Binance)."""
+    status = str(row.get("Status", "Pending"))
+    if status in ["TP Hit", "SL Hit", "Closed"]:
+        return status
+
+    pair = str(row.get("Pair", "")).upper().replace("-", "/").replace("USD", "USDT")
+    if not pair or "/" not in pair:
+        return status
+
+    try:
+        exchange = ccxt.bybit()
+        ticker = exchange.fetch_ticker(pair)
+        current_price = ticker["last"]
+
+        entry = float(row.get("Entry", 0))
+        sl = float(row.get("SL", 0))
+        tp1 = float(row.get("TP1", 0))
+        direction = str(row.get("Direction", "")).upper()
+
+        if "LONG" in direction:
+            if current_price >= tp1 and tp1 > 0:
+                return "TP Hit"
+            elif current_price <= sl and sl > 0:
+                return "SL Hit"
+        elif "SHORT" in direction:
+            if current_price <= tp1 and tp1 > 0:
+                return "TP Hit"
+            elif current_price >= sl and sl > 0:
+                return "SL Hit"
+    except Exception:
+        pass
+
+    return "Pending"
 
 
+# --- ΤΕΧΝΙΚΟΙ ΔΕΙΚΤΕΣ & MULTI-TIMEFRAME ANALYZER ---
 def calculate_rsi(prices, period=14):
     """Υπολογισμός RSI (14)"""
     delta = pd.Series(prices).diff()
@@ -80,11 +126,12 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
             fib_500 = round(recent_high - (price_range * 0.500), 2)
 
             # --- Επεξεργασία 4Η (Macro Trend) ---
-            # Resample 1h σε 4h για ακριβή υπολογισμό 4H trend
             df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
             close_4h = df_4h_resampled.values.flatten().tolist()
 
-            sma50_4h = sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
+            sma50_4h = (
+                sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
+            )
             rsi_4h = round(calculate_rsi(close_4h, 14), 1)
 
             # Καθορισμός 4H Τάσης
@@ -138,9 +185,7 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
     except Exception as e:
         st.error(f"Error: {str(e)}")
     return None
-    
-import pandas as pd
-import streamlit as st
+
 
 # --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΛΙΣΤΑΣ TRADES ---
 if "saved_trades" not in st.session_state:
@@ -173,7 +218,9 @@ if "current_analysis" in st.session_state:
     st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
     st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
     st.write(f"**Πρόταση Σήματος:** {analysis['direction']}")
-    st.write(f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}")
+    st.write(
+        f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}"
+    )
     st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
     st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
     st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
@@ -190,32 +237,39 @@ if "current_analysis" in st.session_state:
         st.session_state.saved_trades.append(new_trade)
         st.success(f"Το trade για {coin} αποθηκεύτηκε!")
 
-# --- ΕΜΦΑΝΙΣΗ ΑΠΟΘΗΚΕΥΜΕΝΩΝ TRADES ---
+# --- ΕΜΦΑΝΙΣΗ ΑΠΟΘΗΚΕΥΜΕΝΩΝ TRADES (SESSION) ---
 if st.session_state.saved_trades:
     st.write("---")
-    st.subheader("📋 Αποθηκευμένα Trades")
+    st.subheader("📋 Αποθηκευμένα Trades (Session)")
     df_trades = pd.DataFrame(st.session_state.saved_trades)
     st.dataframe(df_trades)
-# --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
+
+# --- UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ (GEMINI AI) ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
-uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="chart_uploader")
+uploaded_files = st.file_uploader(
+    "Επιλογή εικόνων chart...",
+    type=["png", "jpg", "jpeg", "webp"],
+    accept_multiple_files=True,
+    key="chart_uploader",
+)
 
 if uploaded_files:
     processed_images = []
     cols = st.columns(len(uploaded_files))
-    
+
     for idx, uploaded_file in enumerate(uploaded_files):
         img = Image.open(uploaded_file).convert("RGB")
         enhancer = ImageEnhance.Contrast(img)
         enhanced_img = enhancer.enhance(1.2)
-        
+
         processed_images.append(enhanced_img)
         with cols[idx]:
-            st.image(img, caption=f"Εικόνα {idx+1}", use_container_width=True)
+            st.image(
+                img, caption=f"Εικόνα {idx+1}", use_container_width=True
+            )
 
     if st.button("🚀 Ανάλυση Chart", type="primary"):
         try:
-            # Διορθωμένο Prompt με RRR 1:3 και Liquidity Buffer για αποφυγή SL Sweeps
             prompt = """
             You are a Senior Price Action & Liquidity Scalper.
             Analyze the chart image to find the best immediate trade setup (LONG or SHORT) with strict risk controls.
@@ -232,28 +286,30 @@ if uploaded_files:
             """
 
             response = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model="gemini-3.6-flash",
                 contents=processed_images + [prompt],
                 config=types.GenerateContentConfig(
                     temperature=0.2,
                     response_mime_type="application/json",
                     response_schema=TradeSetup,
-                )
+                ),
             )
-            
+
             st.session_state["parsed_trade"] = response.parsed.model_dump()
             st.success("Η ανάλυση ολοκληρώθηκε!")
 
         except Exception as e:
             st.error(f"Σφάλμα κατά την ανάλυση: {e}")
 
+
 # --- ΒΟΗΘΗΤΙΚΗ ΣΥΝΑΡΤΗΣΗ ΚΑΘΑΡΙΣΜΟΥ ΤΙΜΩΝ ---
 def clean_val(val):
     try:
-        match = re.search(r'\d+\.?\d*', str(val))
+        match = re.search(r"\d+\.?\d*", str(val))
         return float(match.group()) if match else 0.0
     except Exception:
         return 0.0
+
 
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state:
@@ -262,23 +318,39 @@ if "parsed_trade" in st.session_state:
 
     with st.form("confirm_trade_form"):
         col_f1, col_f2 = st.columns(2)
-        
+
         with col_f1:
-            f_pair = st.text_input("Pair", value=trade_data.get("pair", "SUI/USDT"))
-            
+            f_pair = st.text_input(
+                "Pair", value=trade_data.get("pair", "SUI/USDT")
+            )
+
             dir_val = str(trade_data.get("direction", "NO TRADE")).upper()
             opts = ["LONG", "SHORT", "NO TRADE"]
             dir_idx = opts.index(dir_val) if dir_val in opts else 2
             f_dir = st.selectbox("Direction", opts, index=dir_idx)
-            
-            f_entry = st.number_input("Entry Price", value=clean_val(trade_data.get("entry")), format="%.4f")
-            f_sl = st.number_input("Stop Loss (SL)", value=clean_val(trade_data.get("sl")), format="%.4f")
+
+            f_entry = st.number_input(
+                "Entry Price",
+                value=clean_val(trade_data.get("entry")),
+                format="%.4f",
+            )
+            f_sl = st.number_input(
+                "Stop Loss (SL)",
+                value=clean_val(trade_data.get("sl")),
+                format="%.4f",
+            )
 
         with col_f2:
-            f_tp1 = st.number_input("Take Profit 1 (TP1)", value=clean_val(trade_data.get("tp1")), format="%.4f")
-            f_reason = st.text_area("Analysis / Reason", value=trade_data.get("reason", ""))
+            f_tp1 = st.number_input(
+                "Take Profit 1 (TP1)",
+                value=clean_val(trade_data.get("tp1")),
+                format="%.4f",
+            )
+            f_reason = st.text_area(
+                "Analysis / Reason", value=trade_data.get("reason", "")
+            )
 
-        submit_save = st.form_submit_button("💾 Αποθήκευση Trade")
+        submit_save = st.form_submit_button("💾 Αποθήκευση στο CSV Log")
 
     if submit_save:
         new_entry = {
@@ -290,7 +362,7 @@ if "parsed_trade" in st.session_state:
             "TP1": f_tp1,
             "TP2": 0.0,
             "Status": "Pending",
-            "Reason": f_reason
+            "Reason": f_reason,
         }
 
         if os.path.exists(LOG_FILE):
@@ -298,14 +370,16 @@ if "parsed_trade" in st.session_state:
         else:
             df_log = pd.DataFrame()
 
-        df_log = pd.concat([df_log, pd.DataFrame([new_entry])], ignore_index=True)
+        df_log = pd.concat(
+            [df_log, pd.DataFrame([new_entry])], ignore_index=True
+        )
         df_log.to_csv(LOG_FILE, index=False)
-        st.success("Το trade αποθηκεύτηκε επιτυχώς!")
+        st.success("Το trade αποθηκεύτηκε επιτυχώς στο CSV!")
         st.rerun()
 
 # --- LIVE TRADE TRACKER ---
 st.divider()
-st.subheader("📜 Live Trade Log Tracker")
+st.subheader("📜 Live Trade Log Tracker (CSV File)")
 
 df_history = pd.read_csv(LOG_FILE)
 
@@ -314,14 +388,28 @@ with col_a:
     if st.button("🔄 Ενημέρωση Live Status Trades", key="update_status_btn"):
         with st.spinner("Έλεγχος ζωντανών τιμών από την αγορά..."):
             if not df_history.empty:
-                df_history["Status"] = df_history.apply(check_trade_status, axis=1)
+                df_history["Status"] = df_history.apply(
+                    check_trade_status, axis=1
+                )
                 df_history.to_csv(LOG_FILE, index=False)
             st.rerun()
 
 st.dataframe(df_history, use_container_width=True)
 
 if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_btn"):
-    df_empty = pd.DataFrame(columns=["Date", "Pair", "Direction", "Entry", "SL", "TP1", "TP2", "Status", "Reason"])
+    df_empty = pd.DataFrame(
+        columns=[
+            "Date",
+            "Pair",
+            "Direction",
+            "Entry",
+            "SL",
+            "TP1",
+            "TP2",
+            "Status",
+            "Reason",
+        ]
+    )
     df_empty.to_csv(LOG_FILE, index=False)
     st.rerun()
 
@@ -331,11 +419,22 @@ st.subheader("⚖️ Υπολογισμός Ρίσκου & Position Size")
 
 col_acc1, col_acc2, col_acc3 = st.columns(3)
 with col_acc1:
-    account_balance = st.number_input("Συνολικό Κεφάλαιο ($)", value=50.0, step=10.0, key="risk_calc_balance")
+    account_balance = st.number_input(
+        "Συνολικό Κεφάλαιο ($)", value=50.0, step=10.0, key="risk_calc_balance"
+    )
 with col_acc2:
-    risk_percentage = st.number_input("Ρίσκο ανά Trade (%)", value=1.0, step=0.5, key="risk_calc_pct")
+    risk_percentage = st.number_input(
+        "Ρίσκο ανά Trade (%)", value=1.0, step=0.5, key="risk_calc_pct"
+    )
 with col_acc3:
-    leverage = st.number_input("Leverage (x)", value=10, min_value=1, max_value=100, step=1, key="risk_calc_lev")
+    leverage = st.number_input(
+        "Leverage (x)",
+        value=10,
+        min_value=1,
+        max_value=100,
+        step=1,
+        key="risk_calc_lev",
+    )
 
 try:
     parsed = st.session_state.get("parsed_trade", {})
@@ -346,9 +445,9 @@ try:
     else:
         df_last = pd.read_csv(LOG_FILE)
         if not df_last.empty:
-            e_val = float(str(df_last.iloc[0]["Entry"]).replace(",", "."))
-            s_val = float(str(df_last.iloc[0]["SL"]).replace(",", "."))
-            t_val = float(str(df_last.iloc[0]["TP1"]).replace(",", "."))
+            e_val = float(str(df_last.iloc[-1]["Entry"]).replace(",", "."))
+            s_val = float(str(df_last.iloc[-1]["SL"]).replace(",", "."))
+            t_val = float(str(df_last.iloc[-1]["TP1"]).replace(",", "."))
         else:
             e_val, s_val, t_val = 0.0, 0.0, 0.0
 except (ValueError, TypeError, Exception):
@@ -357,14 +456,16 @@ except (ValueError, TypeError, Exception):
 if e_val > 0 and s_val > 0 and e_val != s_val:
     risk_amount_usd = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(e_val - s_val)
-    
+
     position_size_units = risk_amount_usd / price_risk_per_unit
     position_size_usd = position_size_units * e_val
     margin_required = position_size_usd / leverage
-    
+
     reward_per_unit = abs(t_val - e_val) if t_val > 0 else 0
     potential_profit_usd = position_size_units * reward_per_unit
-    rrr = reward_per_unit / price_risk_per_unit if price_risk_per_unit > 0 else 0
+    rrr = (
+        reward_per_unit / price_risk_per_unit if price_risk_per_unit > 0 else 0
+    )
 
     st.markdown("### 📊 Αποτελέσματα")
     c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -375,4 +476,6 @@ if e_val > 0 and s_val > 0 and e_val != s_val:
     c5.metric("Ποσότητα (Units)", f"{position_size_units:.4f}")
     c6.metric("Risk/Reward", f"1 : {rrr:.2f}")
 else:
-    st.info("💡 Μόλις ολοκληρωθεί η ανάλυση από το AI και συμπληρωθούν το Entry & Stop Loss, θα εμφανιστούν εδώ οι υπολογισμοί.")
+    st.info(
+        "💡 Μόλις ολοκληρωθεί η ανάλυση από το AI και συμπληρωθούν το Entry & Stop Loss, θα εμφανιστούν εδώ οι υπολογισμοί."
+    )
