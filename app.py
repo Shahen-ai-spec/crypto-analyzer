@@ -137,9 +137,7 @@ if st.button("Ανάλυση SOL/USDT"):
     else:
         st.error("Αποτυχία λήψης δεδομένων από την Bybit.")
 
-# --- UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ ---
-st.subheader("📷 Ανάλυση Εικόνων Chart")
-uploaded_files = st.file_uploader(...)
+
 
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
