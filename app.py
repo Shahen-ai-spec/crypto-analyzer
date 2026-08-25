@@ -86,44 +86,46 @@ st.divider()
 # --- ΣΥΝΑΡΤΗΣΗ ΑΥΤΟΜΑΤΟΥ ΥΠΟΛΟΓΙΣΜΟΥ ΣΗΜΑΤΟΣ (BYBIT) ---
 def get_auto_analysis(symbol):
     try:
-        # Τραβάμε τα τελευταία 50 κεριά (1 Hour) από την Bybit
         url = f"https://api.bybit.com/v5/market/kline?category=linear&symbol={symbol}&interval=60&limit=50"
         response = requests.get(url, timeout=5).json()
-        
+
         if response.get("retCode") == 0 and response["result"]["list"]:
             klines = response["result"]["list"]
             close_prices = [float(k[4]) for k in klines]
             high_prices = [float(k[2]) for k in klines]
             low_prices = [float(k[3]) for k in klines]
-            
+
             current_price = close_prices[0]
-            recent_high = max(high_prices[:24]) # Υψηλό 24ώρου
-            recent_low = min(low_prices[:24])   # Χαμηλό 24ώρου
-            
-            # Υπολογισμός Κινητού Μέσου Όρου (SMA 20)
+            recent_high = max(high_prices[:24])
+            recent_low = min(low_prices[:24])
+
             sma20 = sum(close_prices[:20]) / 20
-            
-            # Λογική Σήματος
+
             if current_price > sma20:
                 direction = "LONG"
-                tp1 = round(current_price + (recent_high - current_price) * 0.5, 2)
+                tp1 = round(
+                    current_price + (recent_high - current_price) * 0.5, 2
+                )
                 sl = round(recent_low, 2)
             else:
                 direction = "SHORT"
-                tp1 = round(current_price - (current_price - recent_low) * 0.5, 2)
+                tp1 = round(
+                    current_price - (current_price - recent_low) * 0.5, 2
+                )
                 sl = round(recent_high, 2)
-                
+
             return {
                 "price": current_price,
                 "direction": direction,
                 "tp1": tp1,
                 "sl": sl,
-                "sma20": round(sma20, 2)
+                "sma20": round(sma20, 2),
             }
+        else:
+            st.error(f"API Error: {response.get('retMsg')}")
     except Exception as e:
-        pass
-    
-        return None
+        st.error(f"Python Error: {str(e)}")
+    return None
 
 #  ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) 
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
