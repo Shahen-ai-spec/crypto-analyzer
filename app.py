@@ -87,46 +87,56 @@ st.divider()
 def get_auto_analysis(symbol):
     try:
         url = f"https://api.bybit.com/v5/market/kline?category=linear&symbol={symbol}&interval=60&limit=50"
-        response = requests.get(url, timeout=5).json()
 
-        if response.get("retCode") == 0 and response["result"]["list"]:
-            klines = response["result"]["list"]
-            close_prices = [float(k[4]) for k in klines]
-            high_prices = [float(k[2]) for k in klines]
-            low_prices = [float(k[3]) for k in klines]
+        # Προσθήκη headers για προσπέραση τυχόν μπλοκαρίσματος
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
 
-            current_price = close_prices[0]
-            recent_high = max(high_prices[:24])
-            recent_low = min(low_prices[:24])
+        res = requests.get(url, headers=headers, timeout=5)
 
-            sma20 = sum(close_prices[:20]) / 20
+        # Έλεγχος αν η απάντηση είναι πράγματι JSON
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("retCode") == 0 and data["result"]["list"]:
+                klines = data["result"]["list"]
+                close_prices = [float(k[4]) for k in klines]
+                high_prices = [float(k[2]) for k in klines]
+                low_prices = [float(k[3]) for k in klines]
 
-            if current_price > sma20:
-                direction = "LONG"
-                tp1 = round(
-                    current_price + (recent_high - current_price) * 0.5, 2
-                )
-                sl = round(recent_low, 2)
+                current_price = close_prices[0]
+                recent_high = max(high_prices[:24])
+                recent_low = min(low_prices[:24])
+
+                sma20 = sum(close_prices[:20]) / 20
+
+                if current_price > sma20:
+                    direction = "LONG"
+                    tp1 = round(
+                        current_price + (recent_high - current_price) * 0.5, 2
+                    )
+                    sl = round(recent_low, 2)
+                else:
+                    direction = "SHORT"
+                    tp1 = round(
+                        current_price - (current_price - recent_low) * 0.5, 2
+                    )
+                    sl = round(recent_high, 2)
+
+                return {
+                    "price": current_price,
+                    "direction": direction,
+                    "tp1": tp1,
+                    "sl": sl,
+                    "sma20": round(sma20, 2),
+                }
             else:
-                direction = "SHORT"
-                tp1 = round(
-                    current_price - (current_price - recent_low) * 0.5, 2
-                )
-                sl = round(recent_high, 2)
-
-            return {
-                "price": current_price,
-                "direction": direction,
-                "tp1": tp1,
-                "sl": sl,
-                "sma20": round(sma20, 2),
-            }
+                st.error(f"Bybit API Error: {data.get('retMsg')}")
         else:
-            st.error(f"API Error: {response.get('retMsg')}")
+            st.error(f"HTTP Error {res.status_code}: {res.text[:100]}")
     except Exception as e:
         st.error(f"Python Error: {str(e)}")
     return None
-
 #  ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) 
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 if st.button("Ανάλυση SOL/USDT"):
