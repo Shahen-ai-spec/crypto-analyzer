@@ -83,49 +83,63 @@ final_html = tv_widget_html.replace("SYMBOL_PLACEHOLDER", tv_symbol).replace("TI
 st.components.v1.html(final_html, height=500)
 st.divider()
 
-# --- ΣΥΝΑΡΤΗΣΗ LIVE CHECK ΑΓΟΡΑΣ (ΔΙΟΡΘΩΜΕΝΗ) ---
-def check_trade_status(row):
-    pair = str(row.get("Pair", "")).replace("/", "").replace("-", "").replace(" ", "").upper()
-    direction = str(row.get("Direction", "")).upper()
-    current_status = str(row.get("Status", "Pending ⏳"))
-    
-    if "WIN" in current_status or "LOSS" in current_status:
-        return current_status
-
-    if not pair or pair == "NAN" or direction == "NO TRADE":
-        return current_status
-
+# --- ΣΥΝΑΡΤΗΣΗ ΑΥΤΟΜΑΤΟΥ ΥΠΟΛΟΓΙΣΜΟΥ ΣΗΜΑΤΟΣ (BYBIT) ---
+def get_auto_analysis(symbol):
     try:
-        tp1 = float(str(row.get("TP1", 0)).replace(",", "."))
-        sl = float(str(row.get("SL", 0)).replace(",", "."))
+        # Τραβάμε τα τελευταία 50 κεριά (1 Hour) από την Bybit
+        url = f"https://api.bybit.com/v5/market/kline?category=linear&symbol={symbol}&interval=60&limit=50"
+        response = requests.get(url, timeout=5).json()
         
-        # Καθαρισμός συμβόλου για Bybit Linear Tickers
-        clean_symbol = pair if pair.endswith("USDT") or pair.endswith("USDC") else f"{pair}USDT"
-        clean_symbol = clean_symbol.replace("USDC", "USDT")
-        
-        url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={clean_symbol}"
-        response = requests.get(url, timeout=5)
-        data = response.json()
-        
-        if data.get("retCode") == 0 and data["result"]["list"]:
-            last_price = float(data["result"]["list"][0]["lastPrice"])
+        if response.get("retCode") == 0 and response["result"]["list"]:
+            klines = response["result"]["list"]
+            close_prices = [float(k[4]) for k in klines]
+            high_prices = [float(k[2]) for k in klines]
+            low_prices = [float(k[3]) for k in klines]
             
-            if "LONG" in direction:
-                if sl > 0 and last_price <= sl:
-                    return "LOSS ❌"
-                elif tp1 > 0 and last_price >= tp1:
-                    return "WIN 🎯"
-            elif "SHORT" in direction:
-                if sl > 0 and last_price >= sl:
-                    return "LOSS ❌"
-                elif tp1 > 0 and last_price <= tp1:
-                    return "WIN 🎯"
-                    
-            return f"Pending ⏳ ({last_price})"
-    except Exception:
+            current_price = close_prices[0]
+            recent_high = max(high_prices[:24]) # Υψηλό 24ώρου
+            recent_low = min(low_prices[:24])   # Χαμηλό 24ώρου
+            
+            # Υπολογισμός Κινητού Μέσου Όρου (SMA 20)
+            sma20 = sum(close_prices[:20]) / 20
+            
+            # Λογική Σήματος
+            if current_price > sma20:
+                direction = "LONG"
+                tp1 = round(current_price + (recent_high - current_price) * 0.5, 2)
+                sl = round(recent_low, 2)
+            else:
+                direction = "SHORT"
+                tp1 = round(current_price - (current_price - recent_low) * 0.5, 2)
+                sl = round(recent_high, 2)
+                
+            return {
+                "price": current_price,
+                "direction": direction,
+                "tp1": tp1,
+                "sl": sl,
+                "sma20": round(sma20, 2)
+            }
+    except Exception as e:
         pass
-        
-    return current_status
+    
+        return None
+
+# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) ---
+st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
+if st.button("Ανάλυση SOL/USDT"):
+    analysis = get_auto_analysis("SOLUSDT")
+    if analysis:
+        st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
+        st.write(f"**Πρόταση:** {analysis['direction']}")
+        st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
+        st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
+    else:
+        st.error("Αποτυχία λήψης δεδομένων από την Bybit.")
+
+# --- UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ ---
+st.subheader("📷 Ανάλυση Εικόνων Chart")
+uploaded_files = st.file_uploader(...)
 
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
