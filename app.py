@@ -37,27 +37,22 @@ class TradeSetup(BaseModel):
     reason: str     # Αιτιολογία για το trade
 
 # --- ΔΥΝΑΜΙΚΟ TRADINGVIEW CHART ---
-def get_auto_analysis(symbol):
+import yfinance as yf
+
+
+def get_auto_analysis(symbol_ticker="SOL-USD"):
     try:
-        # Κλήση στο API της Binance (δεν μπλοκάρει τους servers του Streamlit)
-        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=50"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
+        # Τραβάμε δεδομένα 7 ημερών με interval 1 ώρας από το Yahoo Finance
+        df = yf.download(tickers=symbol_ticker, period="7d", interval="1h")
 
-        res = requests.get(url, headers=headers, timeout=5)
+        if not df.empty:
+            close_prices = df["Close"].values.flatten().tolist()
+            high_prices = df["High"].values.flatten().tolist()
+            low_prices = df["Low"].values.flatten().tolist()
 
-        if res.status_code == 200:
-            klines = res.json()
-            # Στην Binance: index 4=Close, 2=High, 3=Low
-            close_prices = [float(k[4]) for k in klines]
-            high_prices = [float(k[2]) for k in klines]
-            low_prices = [float(k[3]) for k in klines]
-
-            # Τα δεδομένα της Binance έρχονται με παλαιότερη σειρά (τελευταίο στοιχείο = τρέχουσα τιμή)
-            current_price = close_prices[-1]
-            recent_high = max(high_prices[-24:])
-            recent_low = min(low_prices[-24:])
+            current_price = round(float(close_prices[-1]), 2)
+            recent_high = round(float(max(high_prices[-24:])), 2)
+            recent_low = round(float(min(low_prices[-24:])), 2)
 
             sma20 = sum(close_prices[-20:]) / 20
 
@@ -66,13 +61,13 @@ def get_auto_analysis(symbol):
                 tp1 = round(
                     current_price + (recent_high - current_price) * 0.5, 2
                 )
-                sl = round(recent_low, 2)
+                sl = recent_low
             else:
                 direction = "SHORT"
                 tp1 = round(
                     current_price - (current_price - recent_low) * 0.5, 2
                 )
-                sl = round(recent_high, 2)
+                sl = recent_high
 
             return {
                 "price": current_price,
@@ -82,9 +77,9 @@ def get_auto_analysis(symbol):
                 "sma20": round(sma20, 2),
             }
         else:
-            st.error(f"HTTP Error {res.status_code}: {res.text[:100]}")
+            st.error("Δεν βρέθηκαν δεδομένα από το Yahoo Finance.")
     except Exception as e:
-        st.error(f"Python Error: {str(e)}")
+        st.error(f"Error: {str(e)}")
     return None
     
 #  ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) 
