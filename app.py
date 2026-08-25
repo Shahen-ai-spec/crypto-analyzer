@@ -86,7 +86,7 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
 # Επιλογή νομίσματος από τον χρήστη
-selected_coin = st.selectbox(
+selected_coin = st.text_input("Γράψε Ticker (π.χ. SOL-USD, BTC-USD):", value="SOL-USD")
     "Επίλεξε Νόμισμα:",
     ["SOL-USD", "BTC-USD", "ETH-USD", "XRP-USD"],
     index=0,
