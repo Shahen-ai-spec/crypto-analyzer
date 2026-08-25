@@ -40,9 +40,22 @@ class TradeSetup(BaseModel):
 import yfinance as yf
 
 
+import pandas as pd
+import yfinance as yf
+
+
+def calculate_rsi(prices, period=14):
+    """Υπολογισμός RSI (14)"""
+    delta = pd.Series(prices).diff()
+    gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.iloc[-1]
+
+
 def get_auto_analysis(symbol_ticker="SOL-USD"):
     try:
-        # Τραβάμε δεδομένα 7 ημερών με interval 1 ώρας από το Yahoo Finance
         df = yf.download(tickers=symbol_ticker, period="7d", interval="1h")
 
         if not df.empty:
@@ -54,20 +67,36 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
             recent_high = round(float(max(high_prices[-24:])), 2)
             recent_low = round(float(min(low_prices[-24:])), 2)
 
+            # 1. Υπολογισμός SMA 20
             sma20 = sum(close_prices[-20:]) / 20
 
-            if current_price > sma20:
-                direction = "LONG"
-                tp1 = round(
-                    current_price + (recent_high - current_price) * 0.5, 2
-                )
-                sl = recent_low
+            # 2. Υπολογισμός RSI 14
+            rsi_val = round(calculate_rsi(close_prices, 14), 1)
+
+            # 3. Υπολογισμός Fibonacci Levels (από το 24h High/Low)
+            price_range = recent_high - recent_low
+            fib_618 = round(recent_high - (price_range * 0.618), 2)
+            fib_500 = round(recent_high - (price_range * 0.500), 2)
+
+            # --- Συνδυαστική Λογική Σήματος ---
+            # LONG αν η τιμή είναι κοντά/πάνω από το 0.618 Fib & RSI < 60
+            # SHORT αν η τιμή είναι πάνω από SMA20 αλλά RSI > 70 (Overbought) ή κάτω από Fib 0.618
+            if current_price >= fib_618 and rsi_val < 65:
+                direction = "🟢 LONG (Fib Support & Good Momentum)"
+                tp1 = round(recent_high, 2)
+                sl = round(recent_low, 2)
+            elif rsi_val >= 70:
+                direction = "🔴 SHORT (RSI Overbought)"
+                tp1 = fib_500
+                sl = round(recent_high * 1.01, 2)
+            elif current_price < fib_618 and rsi_val <= 40:
+                direction = "🔴 SHORT (Broke Fib Support)"
+                tp1 = round(recent_low, 2)
+                sl = fib_500
             else:
-                direction = "SHORT"
-                tp1 = round(
-                    current_price - (current_price - recent_low) * 0.5, 2
-                )
-                sl = recent_high
+                direction = "🟡 NEUTRAL / WAIT (No Clear Setup)"
+                tp1 = round(recent_high, 2)
+                sl = round(recent_low, 2)
 
             return {
                 "price": current_price,
@@ -75,6 +104,9 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
                 "tp1": tp1,
                 "sl": sl,
                 "sma20": round(sma20, 2),
+                "rsi": rsi_val,
+                "fib_618": fib_618,
+                "fib_500": fib_500,
             }
         else:
             st.error("Δεν βρέθηκαν δεδομένα από το Yahoo Finance.")
