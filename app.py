@@ -82,17 +82,26 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
         st.error(f"Error: {str(e)}")
     return None
     
-#  ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) 
+# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (UI) ---
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
-if st.button("Ανάλυση SOL/USDT"):
-    analysis = get_auto_analysis("SOL-USD")
+
+# Επιλογή νομίσματος από τον χρήστη
+selected_coin = st.selectbox(
+    "Επίλεξε Νόμισμα:",
+    ["SOL-USD", "BTC-USD", "ETH-USD", "XRP-USD"],
+    index=0,
+)
+
+if st.button("Ανάλυση"):
+    analysis = get_auto_analysis(selected_coin)
     if analysis:
+        st.write(f"**Νόμισμα:** {selected_coin}")
         st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
-        st.write(f"**Πρόταση:** {analysis['direction']}")
+        st.write(f"**Πρόταση (SMA20):** {analysis['direction']}")
         st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
         st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
     else:
-        st.error("Αποτυχία λήψης δεδομένων από την Bybit.")
+        st.error("Αποτυχία λήψης δεδομένων.")
 
 
 
