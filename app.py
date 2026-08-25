@@ -85,9 +85,12 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 # --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (UI) ---
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
-# Ελεύθερο πεδίο πληκτρολόγησης με αυτόματη μετατροπή USDT -> USD
+# Αυτόματη μετατροπή / σε - και USDT σε USD
 user_input = st.text_input(
-    "Γράψε Ticker (π.χ. SOL-USD, ENA-USD ή ENA-USDT):", value="SOL-USD"
+    "Γράψε Ticker (π.χ. SOL-USD, ENA-USD ή ENA/USDT):", value="SOL-USD"
+)
+selected_coin = (
+    user_input.strip().upper().replace("/", "-").replace("-USDT", "-USD")
 )
 selected_coin = user_input.upper().replace("-USDT", "-USD")
 
