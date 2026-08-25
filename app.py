@@ -102,14 +102,10 @@ def calculate_rsi(prices, period=14):
 
 def get_auto_analysis(symbol_ticker="SOL-USD"):
     try:
-        # 1. ΔΕΔΟΜΕΝΑ 1H (Entry Timeframe)
         df_1h = yf.download(tickers=symbol_ticker, period="7d", interval="1h")
-
-        # 2. ΔΕΔΟΜΕΝΑ 4H (Trend Timeframe)
         df_4h = yf.download(tickers=symbol_ticker, period="30d", interval="1h")
 
         if not df_1h.empty:
-            # --- Επεξεργασία 1Η ---
             close_1h = df_1h["Close"].values.flatten().tolist()
             high_1h = df_1h["High"].values.flatten().tolist()
             low_1h = df_1h["Low"].values.flatten().tolist()
@@ -120,12 +116,10 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 
             rsi_1h = round(calculate_rsi(close_1h, 14), 1)
 
-            # Fibonacci Levels (από το 24h High/Low)
             price_range = recent_high - recent_low
             fib_618 = round(recent_high - (price_range * 0.618), 2)
             fib_500 = round(recent_high - (price_range * 0.500), 2)
 
-            # --- Επεξεργασία 4Η (Macro Trend) ---
             df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
             close_4h = df_4h_resampled.values.flatten().tolist()
 
@@ -134,12 +128,10 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
             )
             rsi_4h = round(calculate_rsi(close_4h, 14), 1)
 
-            # Καθορισμός 4H Τάσης
             trend_4h = (
                 "BULLISH" if current_price > sma50_4h else "BEARISH"
             )
 
-            # --- Συνδυαστική Λογική Σήματος (Multi-Timeframe) ---
             if current_price >= fib_618 and rsi_1h < 65:
                 if trend_4h == "BULLISH":
                     direction = "🟢 STRONG LONG (1H Fib + 4H Bullish Trend)"
@@ -209,7 +201,6 @@ if st.button("Ανάλυση"):
     else:
         st.error("Αποτυχία λήψης δεδομένων.")
 
-# Εμφάνιση Αποτελεσμάτων & Κουμπί Αποθήκευσης
 if "current_analysis" in st.session_state:
     analysis = st.session_state.current_analysis
     coin = st.session_state.current_coin
@@ -237,7 +228,6 @@ if "current_analysis" in st.session_state:
         st.session_state.saved_trades.append(new_trade)
         st.success(f"Το trade για {coin} αποθηκεύτηκε!")
 
-# --- ΕΜΦΑΝΙΣΗ ΑΠΟΘΗΚΕΥΜΕΝΩΝ TRADES (SESSION) ---
 if st.session_state.saved_trades:
     st.write("---")
     st.subheader("📋 Αποθηκευμένα Trades (Session)")
@@ -302,7 +292,6 @@ if uploaded_files:
             st.error(f"Σφάλμα κατά την ανάλυση: {e}")
 
 
-# --- ΒΟΗΘΗΤΙΚΗ ΣΥΝΑΡΤΗΣΗ ΚΑΘΑΡΙΣΜΟΥ ΤΙΜΩΝ ---
 def clean_val(val):
     try:
         match = re.search(r"\d+\.?\d*", str(val))
@@ -311,7 +300,7 @@ def clean_val(val):
         return 0.0
 
 
-# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΑ ---
+# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
     trade_data = st.session_state["parsed_trade"]
     st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
@@ -375,7 +364,6 @@ if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
         )
         df_log.to_csv(LOG_FILE, index=False)
 
-        # Καθαρισμός μνήμης για να μην μένουν παλιά νούμερα
         st.session_state["parsed_trade"] = None
         st.success("Το trade αποθηκεύτηκε επιτυχώς!")
         st.rerun()
@@ -404,7 +392,6 @@ if not df_history.empty:
     col_del1, col_del2 = st.columns([2, 1])
 
     with col_del1:
-        # Επιλογή γραμμής/trade για διαγραφή
         trade_options = [
             f"{idx}: {row['Pair']} ({row['Direction']}) - {row['Date']}"
             for idx, row in df_history.iterrows()
