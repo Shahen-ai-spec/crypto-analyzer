@@ -311,8 +311,8 @@ def clean_val(val):
         return 0.0
 
 
-# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
-if "parsed_trade" in st.session_state:
+# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΑ ---
+if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
     trade_data = st.session_state["parsed_trade"]
     st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
 
@@ -374,7 +374,10 @@ if "parsed_trade" in st.session_state:
             [df_log, pd.DataFrame([new_entry])], ignore_index=True
         )
         df_log.to_csv(LOG_FILE, index=False)
-        st.success("Το trade αποθηκεύτηκε επιτυχώς στο CSV!")
+
+        # Καθαρισμός μνήμης για να μην μένουν παλιά νούμερα
+        st.session_state["parsed_trade"] = None
+        st.success("Το trade αποθηκεύτηκε επιτυχώς!")
         st.rerun()
 
 # --- LIVE TRADE TRACKER ---
@@ -383,7 +386,7 @@ st.subheader("📜 Live Trade Log Tracker (CSV File)")
 
 df_history = pd.read_csv(LOG_FILE)
 
-col_a, col_b = st.columns([1, 4])
+col_a, col_b = st.columns([1, 2])
 with col_a:
     if st.button("🔄 Ενημέρωση Live Status Trades", key="update_status_btn"):
         with st.spinner("Έλεγχος ζωντανών τιμών από την αγορά..."):
@@ -396,22 +399,46 @@ with col_a:
 
 st.dataframe(df_history, use_container_width=True)
 
-if st.button("🗑️ Καθαρισμός Ιστορικού", key="clear_log_btn"):
-    df_empty = pd.DataFrame(
-        columns=[
-            "Date",
-            "Pair",
-            "Direction",
-            "Entry",
-            "SL",
-            "TP1",
-            "TP2",
-            "Status",
-            "Reason",
+# --- ΔΙΑΓΡΑΦΗ ΜΕΜΟΝΩΜΕΝΟΥ TRADE Η ΟΛΩΝ ---
+if not df_history.empty:
+    col_del1, col_del2 = st.columns([2, 1])
+
+    with col_del1:
+        # Επιλογή γραμμής/trade για διαγραφή
+        trade_options = [
+            f"{idx}: {row['Pair']} ({row['Direction']}) - {row['Date']}"
+            for idx, row in df_history.iterrows()
         ]
-    )
-    df_empty.to_csv(LOG_FILE, index=False)
-    st.rerun()
+        selected_to_delete = st.selectbox(
+            "Επίλεξε Trade για διαγραφή:", trade_options
+        )
+
+        if st.button("❌ Διαγραφή Επιλεγμένου Trade"):
+            row_idx = int(selected_to_delete.split(":")[0])
+            df_history = df_history.drop(index=row_idx).reset_index(drop=True)
+            df_history.to_csv(LOG_FILE, index=False)
+            st.success("Το trade διαγράφηκε!")
+            st.rerun()
+
+    with col_del2:
+        st.write(" ")
+        st.write(" ")
+        if st.button("🗑️ Καθαρισμός Όλων", key="clear_log_btn"):
+            df_empty = pd.DataFrame(
+                columns=[
+                    "Date",
+                    "Pair",
+                    "Direction",
+                    "Entry",
+                    "SL",
+                    "TP1",
+                    "TP2",
+                    "Status",
+                    "Reason",
+                ]
+            )
+            df_empty.to_csv(LOG_FILE, index=False)
+            st.rerun()
 
 # --- ΑΥΤΟΜΑΤΟΣ ΥΠΟΛΟΓΙΣΜΟΣ ΡΙΣΚΟΥ & POSITION SIZE ---
 st.markdown("---")
