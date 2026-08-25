@@ -139,6 +139,13 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
         st.error(f"Error: {str(e)}")
     return None
     
+import pandas as pd
+import streamlit as st
+
+# --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΛΙΣΤΑΣ TRADES ---
+if "saved_trades" not in st.session_state:
+    st.session_state.saved_trades = []
+
 # --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (UI) ---
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
@@ -152,19 +159,43 @@ selected_coin = (
 if st.button("Ανάλυση"):
     analysis = get_auto_analysis(selected_coin)
     if analysis:
-        st.write(f"**Νόμισμα:** {selected_coin}")
-        st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
-        st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
-        st.write(f"**Πρόταση Σήματος:** {analysis['direction']}")
-        st.write(
-            f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}"
-        )
-        st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
-        st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
-        st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
+        st.session_state.current_analysis = analysis
+        st.session_state.current_coin = selected_coin
     else:
         st.error("Αποτυχία λήψης δεδομένων.")
 
+# Εμφάνιση Αποτελεσμάτων & Κουμπί Αποθήκευσης
+if "current_analysis" in st.session_state:
+    analysis = st.session_state.current_analysis
+    coin = st.session_state.current_coin
+
+    st.write(f"**Νόμισμα:** {coin}")
+    st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
+    st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
+    st.write(f"**Πρόταση Σήματος:** {analysis['direction']}")
+    st.write(f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}")
+    st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
+    st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
+    st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
+
+    if st.button("💾 Αποθήκευση Trade"):
+        new_trade = {
+            "Ticker": coin,
+            "Price": analysis["price"],
+            "Signal": analysis["direction"],
+            "TP1": analysis["tp1"],
+            "SL": analysis["sl"],
+            "4H Trend": analysis["trend_4h"],
+        }
+        st.session_state.saved_trades.append(new_trade)
+        st.success(f"Το trade για {coin} αποθηκεύτηκε!")
+
+# --- ΕΜΦΑΝΙΣΗ ΑΠΟΘΗΚΕΥΜΕΝΩΝ TRADES ---
+if st.session_state.saved_trades:
+    st.write("---")
+    st.subheader("📋 Αποθηκευμένα Trades")
+    df_trades = pd.DataFrame(st.session_state.saved_trades)
+    st.dataframe(df_trades)
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
 uploaded_files = st.file_uploader("Επιλογή εικόνων chart...", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="chart_uploader")
