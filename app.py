@@ -154,14 +154,16 @@ if st.button("Ανάλυση"):
     if analysis:
         st.write(f"**Νόμισμα:** {selected_coin}")
         st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
-        st.write(f"**Πρόταση:** {analysis['direction']}")
-        st.write(f"**RSI (14):** {analysis['rsi']}")
+        st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
+        st.write(f"**Πρόταση Σήματος:** {analysis['direction']}")
+        st.write(
+            f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}"
+        )
         st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
         st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
         st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
     else:
         st.error("Αποτυχία λήψης δεδομένων.")
-
 
 # --- UPLOAD & ΑΝΑΛΥΣΗ EIKONΩΝ ---
 st.subheader("📷 Ανάλυση Εικόνων Chart")
