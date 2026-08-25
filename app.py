@@ -85,7 +85,7 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 #  ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) 
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 if st.button("Ανάλυση SOL/USDT"):
-    analysis = get_auto_analysis("SOLUSDT")
+    analysis = get_auto_analysis("SOL-USD")
     if analysis:
         st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
         st.write(f"**Πρόταση:** {analysis['direction']}")
