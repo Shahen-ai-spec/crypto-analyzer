@@ -56,41 +56,65 @@ def calculate_rsi(prices, period=14):
 
 def get_auto_analysis(symbol_ticker="SOL-USD"):
     try:
-        df = yf.download(tickers=symbol_ticker, period="7d", interval="1h")
+        # 1. ΔΕΔΟΜΕΝΑ 1H (Entry Timeframe)
+        df_1h = yf.download(tickers=symbol_ticker, period="7d", interval="1h")
 
-        if not df.empty:
-            close_prices = df["Close"].values.flatten().tolist()
-            high_prices = df["High"].values.flatten().tolist()
-            low_prices = df["Low"].values.flatten().tolist()
+        # 2. ΔΕΔΟΜΕΝΑ 4H (Trend Timeframe)
+        df_4h = yf.download(tickers=symbol_ticker, period="30d", interval="1h")
 
-            current_price = round(float(close_prices[-1]), 2)
-            recent_high = round(float(max(high_prices[-24:])), 2)
-            recent_low = round(float(min(low_prices[-24:])), 2)
+        if not df_1h.empty:
+            # --- Επεξεργασία 1Η ---
+            close_1h = df_1h["Close"].values.flatten().tolist()
+            high_1h = df_1h["High"].values.flatten().tolist()
+            low_1h = df_1h["Low"].values.flatten().tolist()
 
-            # 1. Υπολογισμός SMA 20
-            sma20 = sum(close_prices[-20:]) / 20
+            current_price = round(float(close_1h[-1]), 2)
+            recent_high = round(float(max(high_1h[-24:])), 2)
+            recent_low = round(float(min(low_1h[-24:])), 2)
 
-            # 2. Υπολογισμός RSI 14
-            rsi_val = round(calculate_rsi(close_prices, 14), 1)
+            rsi_1h = round(calculate_rsi(close_1h, 14), 1)
 
-            # 3. Υπολογισμός Fibonacci Levels (από το 24h High/Low)
+            # Fibonacci Levels (από το 24h High/Low)
             price_range = recent_high - recent_low
             fib_618 = round(recent_high - (price_range * 0.618), 2)
             fib_500 = round(recent_high - (price_range * 0.500), 2)
 
-            # --- Συνδυαστική Λογική Σήματος ---
-            # LONG αν η τιμή είναι κοντά/πάνω από το 0.618 Fib & RSI < 60
-            # SHORT αν η τιμή είναι πάνω από SMA20 αλλά RSI > 70 (Overbought) ή κάτω από Fib 0.618
-            if current_price >= fib_618 and rsi_val < 65:
-                direction = "🟢 LONG (Fib Support & Good Momentum)"
+            # --- Επεξεργασία 4Η (Macro Trend) ---
+            # Resample 1h σε 4h για ακριβή υπολογισμό 4H trend
+            df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
+            close_4h = df_4h_resampled.values.flatten().tolist()
+
+            sma50_4h = sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
+            rsi_4h = round(calculate_rsi(close_4h, 14), 1)
+
+            # Καθορισμός 4H Τάσης
+            trend_4h = (
+                "BULLISH" if current_price > sma50_4h else "BEARISH"
+            )
+
+            # --- Συνδυαστική Λογική Σήματος (Multi-Timeframe) ---
+            if current_price >= fib_618 and rsi_1h < 65:
+                if trend_4h == "BULLISH":
+                    direction = "🟢 STRONG LONG (1H Fib + 4H Bullish Trend)"
+                else:
+                    direction = (
+                        "🟡 WEAK LONG (1H Fib Support, αλλά 4H Bearish)"
+                    )
                 tp1 = round(recent_high, 2)
                 sl = round(recent_low, 2)
-            elif rsi_val >= 70:
-                direction = "🔴 SHORT (RSI Overbought)"
+
+            elif rsi_1h >= 70:
+                direction = "🔴 SHORT (RSI 1H Overbought)"
                 tp1 = fib_500
                 sl = round(recent_high * 1.01, 2)
-            elif current_price < fib_618 and rsi_val <= 40:
-                direction = "🔴 SHORT (Broke Fib Support)"
+
+            elif current_price < fib_618 and rsi_1h <= 45:
+                if trend_4h == "BEARISH":
+                    direction = (
+                        "🔴 STRONG SHORT (Broke 1H Fib + 4H Bearish)"
+                    )
+                else:
+                    direction = "⚠️ SHORT Υψηλού Ρίσκου (Κόντρα στο 4H Bullish Trend)"
                 tp1 = round(recent_low, 2)
                 sl = fib_500
             else:
@@ -103,8 +127,9 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
                 "direction": direction,
                 "tp1": tp1,
                 "sl": sl,
-                "sma20": round(sma20, 2),
-                "rsi": rsi_val,
+                "rsi_1h": rsi_1h,
+                "rsi_4h": rsi_4h,
+                "trend_4h": trend_4h,
                 "fib_618": fib_618,
                 "fib_500": fib_500,
             }
