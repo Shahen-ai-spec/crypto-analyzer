@@ -137,6 +137,7 @@ def get_auto_analysis(symbol):
     except Exception as e:
         st.error(f"Python Error: {str(e)}")
     return None
+    
 #  ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ BYBIT (UI) 
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 if st.button("Ανάλυση SOL/USDT"):
