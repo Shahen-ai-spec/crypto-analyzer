@@ -236,7 +236,7 @@ if "current_analysis" in st.session_state:
                 "4H Trend": analysis["trend_4h"],
             }
 st.session_state.saved_trades_list.append(new_trade)
-            st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
+     st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
 # --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΜΝΗΜΗΣ TRADES ---
 if "saved_trades_list" not in st.session_state:
     st.session_state.saved_trades_list = []
