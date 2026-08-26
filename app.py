@@ -314,7 +314,7 @@ if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
         st.rerun()
 
 
-# --- LIVE TRADE TRACKER (ΕΜΦΑΝΙΖΕΤΑΙ ΠΑΝΤΑ) ---
+# --- LIVE TRADE TRACKER & ΔΙΑΓΡΑΦΗ (ΣΩΣΤΑ ΣΤΟΙΧΙΣΜΕΝΟ) ---
 st.divider()
 st.subheader("📜 Live Trade Log Tracker")
 
@@ -322,15 +322,20 @@ if st.session_state.saved_trades_list:
     df_display = pd.DataFrame(st.session_state.saved_trades_list)
     st.dataframe(df_display, use_container_width=True)
 
-    # --- ΔΙΑΓΡΑΦΗ TRADES ---
     st.markdown("#### 🗑️ Διαχείριση / Διαγραφή")
     col_del1, col_del2 = st.columns([2, 1])
 
     with col_del1:
-        trade_options = [
-            f"{idx}: {row['Pair']} ({row['Direction']}) - {row['Date']}"
-            for idx, row in df_display.iterrows()
-        ]
+        trade_options = []
+        for idx, row in df_display.iterrows():
+            pair_name = row.get("Pair") or row.get("Ticker") or "Unknown"
+            direction = row.get("Direction") or row.get("Signal") or "N/A"
+            date_val = row.get("Date") or "Live"
+
+            trade_options.append(
+                f"{idx}: {pair_name} ({direction}) - {date_val}"
+            )
+
         selected_to_delete = st.selectbox(
             "Επίλεξε Trade για διαγραφή:", trade_options
         )
@@ -339,7 +344,6 @@ if st.session_state.saved_trades_list:
             row_idx = int(selected_to_delete.split(":")[0])
             st.session_state.saved_trades_list.pop(row_idx)
 
-            # Ενημέρωση CSV
             df_updated = pd.DataFrame(st.session_state.saved_trades_list)
             df_updated.to_csv(LOG_FILE, index=False)
 
