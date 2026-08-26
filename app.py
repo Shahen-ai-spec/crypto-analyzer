@@ -445,23 +445,32 @@ with col_a:
 
 st.dataframe(df_history, use_container_width=True)
 
-# --- ΔΙΑΓΡΑΦΗ ΜΕΜΟΝΩΜΕΝΟΥ TRADE Η ΟΛΩΝ ---
-if not df_history.empty:
+# --- ΔΙΑΓΡΑΦΗ TRADES (ΑΣΦΑΛΗΣ ΕΛΕΓΧΟΣ ΣΤΗΛΩΝ) ---
+    st.markdown("#### 🗑️ Διαχείριση / Διαγραφή")
     col_del1, col_del2 = st.columns([2, 1])
 
     with col_del1:
-        trade_options = [
-            f"{idx}: {row['Pair']} ({row['Direction']}) - {row['Date']}"
-            for idx, row in df_history.iterrows()
-        ]
+        trade_options = []
+        for idx, row in df_display.iterrows():
+            # Ασφαλής ανάγνωση Ticker/Pair
+            pair_name = row.get("Pair") or row.get("Ticker") or "Unknown"
+            direction = row.get("Direction") or row.get("Signal") or "N/A"
+            date_val = row.get("Date") or "Live"
+
+            trade_options.append(f"{idx}: {pair_name} ({direction}) - {date_val}")
+
         selected_to_delete = st.selectbox(
             "Επίλεξε Trade για διαγραφή:", trade_options
         )
 
         if st.button("❌ Διαγραφή Επιλεγμένου Trade"):
             row_idx = int(selected_to_delete.split(":")[0])
-            df_history = df_history.drop(index=row_idx).reset_index(drop=True)
-            df_history.to_csv(LOG_FILE, index=False)
+            st.session_state.saved_trades_list.pop(row_idx)
+
+            # Ενημέρωση CSV
+            df_updated = pd.DataFrame(st.session_state.saved_trades_list)
+            df_updated.to_csv(LOG_FILE, index=False)
+
             st.success("Το trade διαγράφηκε!")
             st.rerun()
 
