@@ -236,65 +236,9 @@ if "current_analysis" in st.session_state:
 if "saved_trades" not in st.session_state:
     st.session_state.saved_trades = []
 
-# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (UI) ---
-st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
-
-user_input = st.text_input(
-    "Γράψε Ticker (π.χ. SOL-USD, ENA-USD ή ENA/USDT):", value="SOL-USD"
-)
-selected_coin = (
-    user_input.strip().upper().replace("/", "-").replace("-USDT", "-USD")
-)
-
-if st.button("Ανάλυση"):
-    analysis = get_auto_analysis(selected_coin)
-    if analysis:
-        st.session_state.current_analysis = analysis
-        st.session_state.current_coin = selected_coin
-    else:
-        st.error("Αποτυχία λήψης δεδομένων.")
-
-if "current_analysis" in st.session_state:
-    analysis = st.session_state.current_analysis
-    coin = st.session_state.current_coin
-
-    st.write(f"**Νόμισμα:** {coin}")
-    st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
-    st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
-    st.write(f"**Πρόταση Σήματος:** {analysis['direction']}")
-    st.write(
-        f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}"
-    )
-    st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
-
-    # Εμφάνιση TP1/SL μόνο αν υπάρχει έγκυρο σήμα
-    if analysis["tp1"] is not None and analysis["sl"] is not None:
-        st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
-        st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
-
-        if st.button("💾 Αποθήκευση Trade"):
-            new_trade = {
-                "Ticker": coin,
-                "Price": analysis["price"],
-                "Signal": analysis["direction"],
-                "TP1": analysis["tp1"],
-                "SL": analysis["sl"],
-                "4H Trend": analysis["trend_4h"],
-            }
-            st.session_state.saved_trades.append(new_trade)
-            st.success(f"Το trade για {coin} αποθηκεύτηκε!")
-    else:
-        st.info(
-            "⏳ Αναμονή: Δεν υπάρχει καθαρό σημείο εισόδου αυτή τη στιγμή."
-        )
-if st.session_state.saved_trades:
-    st.write("---")
-    st.subheader("📋 Αποθηκευμένα Trades (Session)")
-    df_trades = pd.DataFrame(st.session_state.saved_trades)
-    st.dataframe(df_trades)
-
 # --- UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ (GEMINI AI) ---
-st.subheader("📷 Ανάλυση Εικόνων Chart")
+st.subheader("📷 Ανάλυση Εικόνων Chart (Gemini AI)")
+
 uploaded_files = st.file_uploader(
     "Επιλογή εικόνων chart...",
     type=["png", "jpg", "jpeg", "webp"],
@@ -317,7 +261,7 @@ if uploaded_files:
                 img, caption=f"Εικόνα {idx+1}", use_container_width=True
             )
 
-    if st.button("🚀 Ανάλυση Chart", type="primary"):
+    if st.button("🚀 Ανάλυση Chart με AI", type="primary"):
         try:
             prompt = """
             You are a Senior Price Action & Liquidity Scalper.
@@ -326,16 +270,16 @@ if uploaded_files:
             RULES:
             1. MARKET STRUCTURE: Identify current trend, key Break of Structure (BOS), or Change of Character (CHoCH).
             2. STOP LOSS PLACEMENT: Do NOT place Stop Loss tightly at immediate candle wicks. Add a wide safety buffer beyond major swing points/liquidity pools to avoid liquidity sweeps.
-            3. RISK TO REWARD: Ensure Take Profit (TP1) achieves at least a 1:3 Risk-to-Reward Ratio (RRR >= 1:3) relative to the entry and buffered SL.
+            3. RISK TO REWARD: Ensure Take Profit (TP1) achieves strictly a 1:3 Risk-to-Reward Ratio (RRR = 1:3) relative to the entry and buffered SL.
             4. Provide exact values for Entry, SL, and TP1.
-            5. Return "NO TRADE" only if the chart structure is completely unreadable or an explicit 1:3 setup with safe SL cannot be formed.
+            5. Return "NO TRADE" only if the chart structure is completely unreadable.
             6. Write a brief explanation for your setup.
 
-            Read the exact crypto pair symbol from the top left of the chart.
+            Read the exact crypto pair symbol from the chart.
             """
 
             response = client.models.generate_content(
-                model="gemini-3.6-flash",
+                model="gemini-1.5-flash",
                 contents=processed_images + [prompt],
                 config=types.GenerateContentConfig(
                     temperature=0.2,
@@ -345,10 +289,10 @@ if uploaded_files:
             )
 
             st.session_state["parsed_trade"] = response.parsed.model_dump()
-            st.success("Η ανάλυση ολοκληρώθηκε!")
+            st.success("Η ανάλυση του screenshot ολοκληρώθηκε!")
 
         except Exception as e:
-            st.error(f"Σφάλμα κατά την ανάλυση: {e}")
+            st.error(f"Σφάλμα κατά την ανάλυση της εικόνας: {e}")
 
 
 def clean_val(val):
@@ -357,6 +301,130 @@ def clean_val(val):
         return float(match.group()) if match else 0.0
     except Exception:
         return 0.0
+
+
+# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΑΠΟΘΗΚΕΥΣΗΣ ΑΠΟ SCREENSHOT ---
+if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
+    trade_data = st.session_state["parsed_trade"]
+    st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
+
+    with st.form("confirm_trade_form"):
+        col_f1, col_f2 = st.columns(2)
+
+        with col_f1:
+            f_pair = st.text_input(
+                "Pair", value=trade_data.get("pair", "SUI/USDT")
+            )
+
+            dir_val = str(trade_data.get("direction", "NO TRADE")).upper()
+            opts = ["LONG", "SHORT", "NO TRADE"]
+            dir_idx = opts.index(dir_val) if dir_val in opts else 2
+            f_dir = st.selectbox("Direction", opts, index=dir_idx)
+
+            f_entry = st.number_input(
+                "Entry Price",
+                value=clean_val(trade_data.get("entry")),
+                format="%.4f",
+            )
+            f_sl = st.number_input(
+                "Stop Loss (SL)",
+                value=clean_val(trade_data.get("sl")),
+                format="%.4f",
+            )
+
+        with col_f2:
+            f_tp1 = st.number_input(
+                "Take Profit 1 (TP1)",
+                value=clean_val(trade_data.get("tp1")),
+                format="%.4f",
+            )
+            f_reason = st.text_area(
+                "Analysis / Reason", value=trade_data.get("reason", "")
+            )
+
+        submit_save = st.form_submit_button("💾 Αποθήκευση στο CSV Log")
+
+    if submit_save:
+        new_entry = {
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Pair": f_pair,
+            "Direction": f_dir,
+            "Entry": f_entry,
+            "SL": f_sl,
+            "TP1": f_tp1,
+            "TP2": 0.0,
+            "Status": "Pending",
+            "Reason": f_reason,
+        }
+
+        if os.path.exists(LOG_FILE):
+            df_log = pd.read_csv(LOG_FILE)
+        else:
+            df_log = pd.DataFrame()
+
+        df_log = pd.concat(
+            [df_log, pd.DataFrame([new_entry])], ignore_index=True
+        )
+        df_log.to_csv(LOG_FILE, index=False)
+
+        # Καθαρισμός μνήμης για να μη μένουν τα παλιά νούμερα στην οθόνη
+        st.session_state["parsed_trade"] = None
+        st.success("Το trade αποθηκεύτηκε επιτυχώς!")
+        st.rerun()
+
+
+# --- LIVE TRADE TRACKER & ΔΙΑΓΡΑΦΗ ---
+st.divider()
+st.subheader("📜 Live Trade Log Tracker")
+
+if os.path.exists(LOG_FILE):
+    df_history = pd.read_csv(LOG_FILE)
+else:
+    df_history = pd.DataFrame()
+
+st.dataframe(df_history, use_container_width=True)
+
+# ΔΙΑΓΡΑΦΗ ΜΕΜΟΝΩΜΕΝΩΝ TRADES
+if not df_history.empty:
+    st.markdown("#### 🗑️ Διαγραφή Trade")
+    col_del1, col_del2 = st.columns([2, 1])
+
+    with col_del1:
+        trade_options = [
+            f"{idx}: {row['Pair']} ({row['Direction']}) - {row['Date']}"
+            for idx, row in df_history.iterrows()
+        ]
+        selected_to_delete = st.selectbox(
+            "Επίλεξε Trade για διαγραφή:", trade_options
+        )
+
+        if st.button("❌ Διαγραφή Επιλεγμένου Trade"):
+            row_idx = int(selected_to_delete.split(":")[0])
+            df_history = df_history.drop(index=row_idx).reset_index(drop=True)
+            df_history.to_csv(LOG_FILE, index=False)
+            st.success("Το trade διαγράφηκε!")
+            st.rerun()
+
+    with col_del2:
+        st.write(" ")
+        st.write(" ")
+        if st.button("🗑️ Καθαρισμός Όλων", key="clear_log_btn"):
+            df_empty = pd.DataFrame(
+                columns=[
+                    "Date",
+                    "Pair",
+                    "Direction",
+                    "Entry",
+                    "SL",
+                    "TP1",
+                    "TP2",
+                    "Status",
+                    "Reason",
+                ]
+            )
+            df_empty.to_csv(LOG_FILE, index=False)
+            st.success("Όλα τα trades διαγράφηκαν!")
+            st.rerun()
 
 
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
