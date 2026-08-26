@@ -130,36 +130,34 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 
             trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
 
-            # --- ΛΟΓΙΚΗ ΣΗΜΑΤΟΣ ΜΕ ΑΥΣΤΗΡΟ 1:3 RRR ---
-            # 1. LONG SETUP (Μόνο αν η τιμή είναι πάνω από το Fib 0.618 & RSI < 60)
+            # --- 1:3 RRR LOGIC ---
             if current_price >= fib_618 and rsi_1h < 60:
-                sl = round(recent_low * 0.995, 4)  # 0.5% κάτω από το low
+                sl = round(recent_low * 0.995, 4)
                 risk = current_price - sl
-                tp1 = round(current_price + (risk * 3), 4)  # Επιβολή 1:3 RRR
+                tp1 = round(current_price + (risk * 3), 4)
 
-                if trend_4h == "BULLISH":
-                    direction = "🟢 STRONG LONG (1H Fib + 4H Bullish Trend)"
-                else:
-                    direction = (
-                        "🟡 WEAK LONG (1H Fib Support, αλλά 4H Bearish)"
-                    )
+                direction = (
+                    "🟢 STRONG LONG"
+                    if trend_4h == "BULLISH"
+                    else "🟡 WEAK LONG"
+                )
 
-            # 2. SHORT SETUP (Μόνο αν RSI >= 65 & τιμή κάτω από Fib 0.500)
             elif rsi_1h >= 65 and current_price < fib_500:
-                sl = round(recent_high * 1.005, 4)  # 0.5% πάνω από το high
+                sl = round(recent_high * 1.005, 4)
                 risk = sl - current_price
-                tp1 = round(current_price - (risk * 3), 4)  # Επιβολή 1:3 RRR
+                tp1 = round(current_price - (risk * 3), 4)
 
-                if trend_4h == "BEARISH":
-                    direction = "🔴 STRONG SHORT (RSI Overbought + 4H Bearish)"
-                else:
-                    direction = "⚠️ SHORT Υψηλού Ρίσκου (Κόντρα στο 4H Bullish Trend)"
+                direction = (
+                    "🔴 STRONG SHORT"
+                    if trend_4h == "BEARISH"
+                    else "⚠️ SHORT Υψηλού Ρίσκου"
+                )
 
-            # 3. ΔΕΝ ΥΠΑΡΧΕΙ ΚΑΘΑΡΟ SETUP
             else:
-                direction = "🟡 NEUTRAL / WAIT (No Clear 1:3 Setup)"
-                tp1 = current_price
-                sl = current_price
+                # ΔΕΝ ΥΠΑΡΧΕΙ SETUP -> ΕΠΙΣΤΡΕΦΟΥΜΕ None ΣΤΑ TP/SL
+                direction = "🟡 NEUTRAL / WAIT (No Clear Setup)"
+                tp1 = None
+                sl = None
 
             return {
                 "price": current_price,
@@ -170,7 +168,6 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
                 "rsi_4h": rsi_4h,
                 "trend_4h": trend_4h,
                 "fib_618": fib_618,
-                "fib_500": fib_500,
             }
         else:
             st.error("Δεν βρέθηκαν δεδομένα από το Yahoo Finance.")
@@ -212,21 +209,27 @@ if "current_analysis" in st.session_state:
         f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}"
     )
     st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
-    st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
-    st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
 
-    if st.button("💾 Αποθήκευση Trade"):
-        new_trade = {
-            "Ticker": coin,
-            "Price": analysis["price"],
-            "Signal": analysis["direction"],
-            "TP1": analysis["tp1"],
-            "SL": analysis["sl"],
-            "4H Trend": analysis["trend_4h"],
-        }
-        st.session_state.saved_trades.append(new_trade)
-        st.success(f"Το trade για {coin} αποθηκεύτηκε!")
+    # Εμφάνιση TP1/SL μόνο αν υπάρχει έγκυρο σήμα
+    if analysis["tp1"] is not None and analysis["sl"] is not None:
+        st.write(f"**Take Profit (TP1):** ${analysis['tp1']}")
+        st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
 
+        if st.button("💾 Αποθήκευση Trade"):
+            new_trade = {
+                "Ticker": coin,
+                "Price": analysis["price"],
+                "Signal": analysis["direction"],
+                "TP1": analysis["tp1"],
+                "SL": analysis["sl"],
+                "4H Trend": analysis["trend_4h"],
+            }
+            st.session_state.saved_trades.append(new_trade)
+            st.success(f"Το trade για {coin} αποθηκεύτηκε!")
+    else:
+        st.info(
+            "⏳ Αναμονή: Δεν υπάρχει καθαρό σημείο εισόδου αυτή τη στιγμή."
+        )
 if st.session_state.saved_trades:
     st.write("---")
     st.subheader("📋 Αποθηκευμένα Trades (Session)")
