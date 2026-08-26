@@ -232,78 +232,19 @@ if "current_analysis" in st.session_state:
             }
             st.session_state.saved_trades.append(new_trade)
             st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
-# --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΛΙΣΤΑΣ TRADES ---
-if "saved_trades" not in st.session_state:
-    st.session_state.saved_trades = []
+# --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΜΝΗΜΗΣ TRADES ---
+if "saved_trades_list" not in st.session_state:
+    st.session_state.saved_trades_list = []
 
-# --- UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ (GEMINI AI) ---
-st.subheader("📷 Ανάλυση Εικόνων Chart (Gemini AI)")
-
-uploaded_files = st.file_uploader(
-    "Επιλογή εικόνων chart...",
-    type=["png", "jpg", "jpeg", "webp"],
-    accept_multiple_files=True,
-    key="chart_uploader",
-)
-
-if uploaded_files:
-    processed_images = []
-    cols = st.columns(len(uploaded_files))
-
-    for idx, uploaded_file in enumerate(uploaded_files):
-        img = Image.open(uploaded_file).convert("RGB")
-        enhancer = ImageEnhance.Contrast(img)
-        enhanced_img = enhancer.enhance(1.2)
-
-        processed_images.append(enhanced_img)
-        with cols[idx]:
-            st.image(
-                img, caption=f"Εικόνα {idx+1}", use_container_width=True
-            )
-
-    if st.button("🚀 Ανάλυση Chart με AI", type="primary"):
-        try:
-            prompt = """
-            You are a Senior Price Action & Liquidity Scalper.
-            Analyze the chart image to find the best immediate trade setup (LONG or SHORT) with strict risk controls.
-
-            RULES:
-            1. MARKET STRUCTURE: Identify current trend, key Break of Structure (BOS), or Change of Character (CHoCH).
-            2. STOP LOSS PLACEMENT: Do NOT place Stop Loss tightly at immediate candle wicks. Add a wide safety buffer beyond major swing points/liquidity pools to avoid liquidity sweeps.
-            3. RISK TO REWARD: Ensure Take Profit (TP1) achieves strictly a 1:3 Risk-to-Reward Ratio (RRR = 1:3) relative to the entry and buffered SL.
-            4. Provide exact values for Entry, SL, and TP1.
-            5. Return "NO TRADE" only if the chart structure is completely unreadable.
-            6. Write a brief explanation for your setup.
-
-            Read the exact crypto pair symbol from the chart.
-            """
-
-            response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=processed_images + [prompt],
-                config=types.GenerateContentConfig(
-                    temperature=0.2,
-                    response_mime_type="application/json",
-                    response_schema=TradeSetup,
-                ),
-            )
-
-            st.session_state["parsed_trade"] = response.parsed.model_dump()
-            st.success("Η ανάλυση του screenshot ολοκληρώθηκε!")
-
-        except Exception as e:
-            st.error(f"Σφάλμα κατά την ανάλυση της εικόνας: {e}")
-
-
-def clean_val(val):
+# Φόρτωση από CSV στην αρχή αν υπάρχει
+if os.path.exists(LOG_FILE) and not st.session_state.saved_trades_list:
     try:
-        match = re.search(r"\d+\.?\d*", str(val))
-        return float(match.group()) if match else 0.0
+        df_disk = pd.read_csv(LOG_FILE)
+        st.session_state.saved_trades_list = df_disk.to_dict("records")
     except Exception:
-        return 0.0
+        pass
 
-
-# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΑΠΟΘΗΚΕΥΣΗΣ ΑΠΟ SCREENSHOT ---
+# --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΑΠΟΘΗΚΕΥΣΗΣ ---
 if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
     trade_data = st.session_state["parsed_trade"]
     st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
@@ -313,7 +254,7 @@ if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
 
         with col_f1:
             f_pair = st.text_input(
-                "Pair", value=trade_data.get("pair", "SUI/USDT")
+                "Pair", value=trade_data.get("pair", "BTC/USDT")
             )
 
             dir_val = str(trade_data.get("direction", "NO TRADE")).upper()
@@ -342,7 +283,7 @@ if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
                 "Analysis / Reason", value=trade_data.get("reason", "")
             )
 
-        submit_save = st.form_submit_button("💾 Αποθήκευση στο CSV Log")
+        submit_save = st.form_submit_button("💾 Αποθήκευση στο Log")
 
     if submit_save:
         new_entry = {
@@ -352,47 +293,39 @@ if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
             "Entry": f_entry,
             "SL": f_sl,
             "TP1": f_tp1,
-            "TP2": 0.0,
             "Status": "Pending",
             "Reason": f_reason,
         }
 
-        if os.path.exists(LOG_FILE):
-            df_log = pd.read_csv(LOG_FILE)
-        else:
-            df_log = pd.DataFrame()
+        # 1. Αποθήκευση στη ζωντανή μνήμη του Streamlit
+        st.session_state.saved_trades_list.append(new_entry)
 
-        df_log = pd.concat(
-            [df_log, pd.DataFrame([new_entry])], ignore_index=True
-        )
-        df_log.to_csv(LOG_FILE, index=False)
+        # 2. Αποθήκευση στο αρχείο CSV
+        df_save = pd.DataFrame(st.session_state.saved_trades_list)
+        df_save.to_csv(LOG_FILE, index=False)
 
-        # Καθαρισμός μνήμης για να μη μένουν τα παλιά νούμερα στην οθόνη
+        # 3. Καθαρισμός φόρμας
         st.session_state["parsed_trade"] = None
         st.success("Το trade αποθηκεύτηκε επιτυχώς!")
         st.rerun()
 
 
-# --- LIVE TRADE TRACKER & ΔΙΑΓΡΑΦΗ ---
+# --- LIVE TRADE TRACKER (ΕΜΦΑΝΙΖΕΤΑΙ ΠΑΝΤΑ) ---
 st.divider()
 st.subheader("📜 Live Trade Log Tracker")
 
-if os.path.exists(LOG_FILE):
-    df_history = pd.read_csv(LOG_FILE)
-else:
-    df_history = pd.DataFrame()
+if st.session_state.saved_trades_list:
+    df_display = pd.DataFrame(st.session_state.saved_trades_list)
+    st.dataframe(df_display, use_container_width=True)
 
-st.dataframe(df_history, use_container_width=True)
-
-# ΔΙΑΓΡΑΦΗ ΜΕΜΟΝΩΜΕΝΩΝ TRADES
-if not df_history.empty:
-    st.markdown("#### 🗑️ Διαγραφή Trade")
+    # --- ΔΙΑΓΡΑΦΗ TRADES ---
+    st.markdown("#### 🗑️ Διαχείριση / Διαγραφή")
     col_del1, col_del2 = st.columns([2, 1])
 
     with col_del1:
         trade_options = [
             f"{idx}: {row['Pair']} ({row['Direction']}) - {row['Date']}"
-            for idx, row in df_history.iterrows()
+            for idx, row in df_display.iterrows()
         ]
         selected_to_delete = st.selectbox(
             "Επίλεξε Trade για διαγραφή:", trade_options
@@ -400,8 +333,12 @@ if not df_history.empty:
 
         if st.button("❌ Διαγραφή Επιλεγμένου Trade"):
             row_idx = int(selected_to_delete.split(":")[0])
-            df_history = df_history.drop(index=row_idx).reset_index(drop=True)
-            df_history.to_csv(LOG_FILE, index=False)
+            st.session_state.saved_trades_list.pop(row_idx)
+
+            # Ενημέρωση CSV
+            df_updated = pd.DataFrame(st.session_state.saved_trades_list)
+            df_updated.to_csv(LOG_FILE, index=False)
+
             st.success("Το trade διαγράφηκε!")
             st.rerun()
 
@@ -409,23 +346,13 @@ if not df_history.empty:
         st.write(" ")
         st.write(" ")
         if st.button("🗑️ Καθαρισμός Όλων", key="clear_log_btn"):
-            df_empty = pd.DataFrame(
-                columns=[
-                    "Date",
-                    "Pair",
-                    "Direction",
-                    "Entry",
-                    "SL",
-                    "TP1",
-                    "TP2",
-                    "Status",
-                    "Reason",
-                ]
-            )
-            df_empty.to_csv(LOG_FILE, index=False)
+            st.session_state.saved_trades_list = []
+            if os.path.exists(LOG_FILE):
+                os.remove(LOG_FILE)
             st.success("Όλα τα trades διαγράφηκαν!")
             st.rerun()
-
+else:
+    st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades στον πίνακα.")
 
 # --- ΦΟΡΜΑ ΕΠΙΒΕΒΑΙΩΣΗΣ ΚΑΙ ΔΙΟΡΘΩΣΗΣ ΔΕΔΟΜΕΝΩΝ ---
 if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
