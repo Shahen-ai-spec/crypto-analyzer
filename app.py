@@ -100,10 +100,20 @@ def calculate_rsi(prices, period=14):
     return rsi.iloc[-1]
 
 
+# --- ΒΕΛΤΙΩΜΕΝΗ ΣΥΝΑΡΤΗΣΗ ΑΥΤΟΜΑΤΗΣ ΑΝΑΛΥΣΗΣ ---
 def get_auto_analysis(symbol_ticker="SOL-USD"):
     try:
-        df_1h = yf.download(tickers=symbol_ticker, period="7d", interval="1h")
-        df_4h = yf.download(tickers=symbol_ticker, period="30d", interval="1h")
+        # Αυτόματη διόρθωση format (π.χ. BTC -> BTC-USD, BTC/USDT -> BTC-USD)
+        ticker_clean = symbol_ticker.strip().upper().replace("/", "-")
+        if not ticker_clean.endswith("-USD") and not ticker_clean.endswith(
+            "-USDT"
+        ):
+            ticker_clean = f"{ticker_clean}-USD"
+        else:
+            ticker_clean = ticker_clean.replace("-USDT", "-USD")
+
+        df_1h = yf.download(tickers=ticker_clean, period="7d", interval="1h")
+        df_4h = yf.download(tickers=ticker_clean, period="30d", interval="1h")
 
         if not df_1h.empty:
             close_1h = df_1h["Close"].values.flatten().tolist()
@@ -118,7 +128,6 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 
             price_range = recent_high - recent_low
             fib_618 = round(recent_high - (price_range * 0.618), 4)
-            fib_500 = round(recent_high - (price_range * 0.500), 4)
 
             df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
             close_4h = df_4h_resampled.values.flatten().tolist()
@@ -130,36 +139,41 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 
             trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
 
-            # --- 1:3 RRR LOGIC ---
-            if current_price >= fib_618 and rsi_1h < 60:
+            # --- ΛΟΓΙΚΗ ΣΗΜΑΤΩΝ ΜΕ ΥΠΟΛΟΓΙΣΜΟ 1:3 RRR ---
+            if current_price >= fib_618 or rsi_1h <= 45:
+                # LONG SETUP
                 sl = round(recent_low * 0.995, 4)
+                if sl >= current_price:
+                    sl = round(current_price * 0.98, 4)
                 risk = current_price - sl
                 tp1 = round(current_price + (risk * 3), 4)
 
                 direction = (
-                    "🟢 STRONG LONG"
+                    "🟢 LONG (Bullish Trend)"
                     if trend_4h == "BULLISH"
-                    else "🟡 WEAK LONG"
+                    else "🟡 LONG (Pullback Setup)"
                 )
 
-            elif rsi_1h >= 65 and current_price < fib_500:
+            elif rsi_1h >= 55 or current_price < fib_618:
+                # SHORT SETUP
                 sl = round(recent_high * 1.005, 4)
+                if sl <= current_price:
+                    sl = round(current_price * 1.02, 4)
                 risk = sl - current_price
                 tp1 = round(current_price - (risk * 3), 4)
 
                 direction = (
-                    "🔴 STRONG SHORT"
+                    "🔴 SHORT (Bearish Trend)"
                     if trend_4h == "BEARISH"
-                    else "⚠️ SHORT Υψηλού Ρίσκου"
+                    else "⚠️ SHORT (Reversal Setup)"
                 )
-
             else:
-                # ΔΕΝ ΥΠΑΡΧΕΙ SETUP -> ΕΠΙΣΤΡΕΦΟΥΜΕ None ΣΤΑ TP/SL
-                direction = "🟡 NEUTRAL / WAIT (No Clear Setup)"
+                direction = "🟡 NEUTRAL / WAIT"
                 tp1 = None
                 sl = None
 
             return {
+                "coin": ticker_clean,
                 "price": current_price,
                 "direction": direction,
                 "tp1": tp1,
@@ -170,11 +184,54 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
                 "fib_618": fib_618,
             }
         else:
-            st.error("Δεν βρέθηκαν δεδομένα από το Yahoo Finance.")
+            st.error(
+                f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker}. Τσέκαρε το σύμβολο (π.χ. BTC, ETH, SOL)."
+            )
     except Exception as e:
         st.error(f"Error: {str(e)}")
     return None
 
+
+# --- UI ΑΥΤΟΜΑΤΗΣ ΑΝΑΛΥΣΗΣ ---
+st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
+
+user_input = st.text_input(
+    "Γράψε οποιοδήποτε Ticker (π.χ. BTC, ETH, SOL, XRP, AVAX, LINK, ADA, NEAR):",
+    value="SOL",
+)
+
+if st.button("Ανάλυση"):
+    analysis = get_auto_analysis(user_input)
+    if analysis:
+        st.session_state.current_analysis = analysis
+
+if "current_analysis" in st.session_state:
+    analysis = st.session_state.current_analysis
+
+    st.write(f"**Νόμισμα:** {analysis['coin']}")
+    st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
+    st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
+    st.write(f"**Πρόταση Σήματος:** {analysis['direction']}")
+    st.write(
+        f"**RSI (1H / 4H):** {analysis['rsi_1h']} / {analysis['rsi_4h']}"
+    )
+    st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
+
+    if analysis["tp1"] is not None and analysis["sl"] is not None:
+        st.write(f"**Take Profit 1 (TP1 - 1:3 RRR):** ${analysis['tp1']}")
+        st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
+
+        if st.button("💾 Αποθήκευση Trade"):
+            new_trade = {
+                "Ticker": analysis["coin"],
+                "Price": analysis["price"],
+                "Signal": analysis["direction"],
+                "TP1": analysis["tp1"],
+                "SL": analysis["sl"],
+                "4H Trend": analysis["trend_4h"],
+            }
+            st.session_state.saved_trades.append(new_trade)
+            st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
 # --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΛΙΣΤΑΣ TRADES ---
 if "saved_trades" not in st.session_state:
     st.session_state.saved_trades = []
