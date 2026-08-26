@@ -201,8 +201,7 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
 st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
 user_input = st.text_input(
-    "Γράψε οποιοδήποτε Ticker (π.χ. BTC, ETH, SOL, XRP, AVAX, LINK, ADA, NEAR):",
-    value="SOL",
+    "Γράψε Ticker (π.χ. BTC, ETH, SOL, XRP):", value="SOL"
 )
 
 if st.button("Ανάλυση"):
@@ -223,7 +222,7 @@ if "current_analysis" in st.session_state:
     st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
 
     if analysis["tp1"] is not None and analysis["sl"] is not None:
-        st.write(f"**Take Profit 1 (TP1 - 1:3 RRR):** ${analysis['tp1']}")
+        st.write(f"**Take Profit 1 (TP1):** ${analysis['tp1']}")
         st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
 
         if st.button("💾 Αποθήκευση Trade"):
@@ -235,8 +234,8 @@ if "current_analysis" in st.session_state:
                 "SL": analysis["sl"],
                 "4H Trend": analysis["trend_4h"],
             }
-st.session_state.saved_trades_list.append(new_trade)
-     st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
+            st.session_state.saved_trades_list.append(new_trade)
+            st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
 # --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΜΝΗΜΗΣ TRADES ---
 if "saved_trades_list" not in st.session_state:
     st.session_state.saved_trades_list = []
