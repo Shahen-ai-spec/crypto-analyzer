@@ -110,15 +110,15 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
             high_1h = df_1h["High"].values.flatten().tolist()
             low_1h = df_1h["Low"].values.flatten().tolist()
 
-            current_price = round(float(close_1h[-1]), 2)
-            recent_high = round(float(max(high_1h[-24:])), 2)
-            recent_low = round(float(min(low_1h[-24:])), 2)
+            current_price = round(float(close_1h[-1]), 4)
+            recent_high = round(float(max(high_1h[-24:])), 4)
+            recent_low = round(float(min(low_1h[-24:])), 4)
 
             rsi_1h = round(calculate_rsi(close_1h, 14), 1)
 
             price_range = recent_high - recent_low
-            fib_618 = round(recent_high - (price_range * 0.618), 2)
-            fib_500 = round(recent_high - (price_range * 0.500), 2)
+            fib_618 = round(recent_high - (price_range * 0.618), 4)
+            fib_500 = round(recent_high - (price_range * 0.500), 4)
 
             df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
             close_4h = df_4h_resampled.values.flatten().tolist()
@@ -128,38 +128,38 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
             )
             rsi_4h = round(calculate_rsi(close_4h, 14), 1)
 
-            trend_4h = (
-                "BULLISH" if current_price > sma50_4h else "BEARISH"
-            )
+            trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
 
-            if current_price >= fib_618 and rsi_1h < 65:
+            # --- ΛΟΓΙΚΗ ΣΗΜΑΤΟΣ ΜΕ ΑΥΣΤΗΡΟ 1:3 RRR ---
+            # 1. LONG SETUP (Μόνο αν η τιμή είναι πάνω από το Fib 0.618 & RSI < 60)
+            if current_price >= fib_618 and rsi_1h < 60:
+                sl = round(recent_low * 0.995, 4)  # 0.5% κάτω από το low
+                risk = current_price - sl
+                tp1 = round(current_price + (risk * 3), 4)  # Επιβολή 1:3 RRR
+
                 if trend_4h == "BULLISH":
                     direction = "🟢 STRONG LONG (1H Fib + 4H Bullish Trend)"
                 else:
                     direction = (
                         "🟡 WEAK LONG (1H Fib Support, αλλά 4H Bearish)"
                     )
-                tp1 = round(recent_high, 2)
-                sl = round(recent_low, 2)
 
-            elif rsi_1h >= 70:
-                direction = "🔴 SHORT (RSI 1H Overbought)"
-                tp1 = fib_500
-                sl = round(recent_high * 1.01, 2)
+            # 2. SHORT SETUP (Μόνο αν RSI >= 65 & τιμή κάτω από Fib 0.500)
+            elif rsi_1h >= 65 and current_price < fib_500:
+                sl = round(recent_high * 1.005, 4)  # 0.5% πάνω από το high
+                risk = sl - current_price
+                tp1 = round(current_price - (risk * 3), 4)  # Επιβολή 1:3 RRR
 
-            elif current_price < fib_618 and rsi_1h <= 45:
                 if trend_4h == "BEARISH":
-                    direction = (
-                        "🔴 STRONG SHORT (Broke 1H Fib + 4H Bearish)"
-                    )
+                    direction = "🔴 STRONG SHORT (RSI Overbought + 4H Bearish)"
                 else:
                     direction = "⚠️ SHORT Υψηλού Ρίσκου (Κόντρα στο 4H Bullish Trend)"
-                tp1 = round(recent_low, 2)
-                sl = fib_500
+
+            # 3. ΔΕΝ ΥΠΑΡΧΕΙ ΚΑΘΑΡΟ SETUP
             else:
-                direction = "🟡 NEUTRAL / WAIT (No Clear Setup)"
-                tp1 = round(recent_high, 2)
-                sl = round(recent_low, 2)
+                direction = "🟡 NEUTRAL / WAIT (No Clear 1:3 Setup)"
+                tp1 = current_price
+                sl = current_price
 
             return {
                 "price": current_price,
@@ -177,7 +177,6 @@ def get_auto_analysis(symbol_ticker="SOL-USD"):
     except Exception as e:
         st.error(f"Error: {str(e)}")
     return None
-
 
 # --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΛΙΣΤΑΣ TRADES ---
 if "saved_trades" not in st.session_state:
