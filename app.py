@@ -14,7 +14,12 @@ import streamlit.components.v1 as components
 import yfinance as yf
 from google import genai
 from google.genai import types
+# --- ΑΡΧΙΚΟΠΟΙΗΣΗ SESSION STATE (ΒΑΛΤΕ ΤΟ ΣΤΗΝ ΑΡΧΗ ΤΟΥ APP.PY) ---
+if "saved_trades" not in st.session_state:
+    st.session_state.saved_trades = []
 
+if "saved_trades_list" not in st.session_state:
+    st.session_state.saved_trades_list = []
 # --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ ΦΟΡΤΩΝΕΙ Η ΕΦΑΡΜΟΓΗ ---
 st.title("🐼 PANDA CRYPTO Analyzer")
 
@@ -230,7 +235,7 @@ if "current_analysis" in st.session_state:
                 "SL": analysis["sl"],
                 "4H Trend": analysis["trend_4h"],
             }
-            st.session_state.saved_trades.append(new_trade)
+st.session_state.saved_trades_list.append(new_trade)
             st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
 # --- ΑΡΧΙΚΟΠΟΙΗΣΗ ΜΝΗΜΗΣ TRADES ---
 if "saved_trades_list" not in st.session_state:
