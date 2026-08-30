@@ -162,84 +162,117 @@ def calculate_rsi(prices, period=14):
   return rsi.iloc[-1]
 
 
-def get_auto_analysis(symbol_ticker="SOL-USD"):
+# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (ΔΙΟΡΘΩΜΕΝΗ) ---
+def get_auto_analysis(symbol_ticker="SOL"):
   try:
-    ticker_clean = symbol_ticker.strip().upper().replace("/", "-")
-    if not ticker_clean.endswith("-USD") and not ticker_clean.endswith("-USDT"):
-      ticker_clean = f"{ticker_clean}-USD"
-    else:
-      ticker_clean = ticker_clean.replace("-USDT", "-USD")
+    # 1. Καθαρισμός του input: αφαιρούμε / και -, μετατρέπουμε σε κεφαλαία
+    raw = symbol_ticker.strip().upper().replace("/", "").replace("-", "")
+
+    # 2. Αφαίρεση κατάληξης USDT ή USD αν υπάρχει ήδη
+    if raw.endswith("USDT"):
+      raw = raw[:-4]
+    elif raw.endswith("USD"):
+      raw = raw[:-3]
+
+    # 3. Δημιουργία της σωστής μορφής για το yfinance (π.χ. SOL-USD)
+    ticker_clean = f"{raw}-USD"
 
     df_1h = yf.download(tickers=ticker_clean, period="7d", interval="1h")
     df_4h = yf.download(tickers=ticker_clean, period="30d", interval="1h")
 
-    if not df_1h.empty:
-      close_1h = df_1h["Close"].values.flatten().tolist()
-      high_1h = df_1h["High"].values.flatten().tolist()
-      low_1h = df_1h["Low"].values.flatten().tolist()
-
-      current_price = round(float(close_1h[-1]), 4)
-      recent_high = round(float(max(high_1h[-24:])), 4)
-      recent_low = round(float(min(low_1h[-24:])), 4)
-
-      rsi_1h = round(calculate_rsi(close_1h, 14), 1)
-
-      price_range = recent_high - recent_low
-      fib_618 = round(recent_high - (price_range * 0.618), 4)
-
-      df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
-      close_4h = df_4h_resampled.values.flatten().tolist()
-
-      sma50_4h = (
-          sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
+    if df_1h.empty:
+      st.error(
+          f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker} (δοκιμάστηκε ως"
+          f" {ticker_clean})."
       )
-      rsi_4h = round(calculate_rsi(close_4h, 14), 1)
+      return None
 
-      trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
+    # Προσπέλαση τιμών με διαχείριση πιθανού MultiIndex
+    close_series = (
+        df_1h["Close"][ticker_clean]
+        if ticker_clean in df_1h["Close"]
+        else df_1h["Close"]
+    )
+    high_series = (
+        df_1h["High"][ticker_clean]
+        if ticker_clean in df_1h["High"]
+        else df_1h["High"]
+    )
+    low_series = (
+        df_1h["Low"][ticker_clean]
+        if ticker_clean in df_1h["Low"]
+        else df_1h["Low"]
+    )
 
-      if current_price >= fib_618 or rsi_1h <= 45:
-        sl = round(recent_low * 0.995, 4)
-        if sl >= current_price:
-          sl = round(current_price * 0.98, 4)
-        risk = current_price - sl
-        tp1 = round(current_price + (risk * 3), 4)
+    close_1h = close_series.dropna().values.flatten().tolist()
+    high_1h = high_series.dropna().values.flatten().tolist()
+    low_1h = low_series.dropna().values.flatten().tolist()
 
-        direction = (
-            "🟢 LONG (Bullish Trend)"
-            if trend_4h == "BULLISH"
-            else "🟡 LONG (Pullback Setup)"
-        )
+    current_price = round(float(close_1h[-1]), 4)
+    recent_high = round(float(max(high_1h[-24:])), 4)
+    recent_low = round(float(min(low_1h[-24:])), 4)
 
-      elif rsi_1h >= 55 or current_price < fib_618:
-        sl = round(recent_high * 1.005, 4)
-        if sl <= current_price:
-          sl = round(current_price * 1.02, 4)
-        risk = sl - current_price
-        tp1 = round(current_price - (risk * 3), 4)
+    rsi_1h = round(calculate_rsi(close_1h, 14), 1)
 
-        direction = (
-            "🔴 SHORT (Bearish Trend)"
-            if trend_4h == "BEARISH"
-            else "⚠️ SHORT (Reversal Setup)"
-        )
-      else:
-        direction = "🟡 NEUTRAL / WAIT"
-        tp1 = None
-        sl = None
+    price_range = recent_high - recent_low
+    fib_618 = round(recent_high - (price_range * 0.618), 4)
 
-      return {
-          "coin": ticker_clean,
-          "price": current_price,
-          "direction": direction,
-          "tp1": tp1,
-          "sl": sl,
-          "rsi_1h": rsi_1h,
-          "rsi_4h": rsi_4h,
-          "trend_4h": trend_4h,
-          "fib_618": fib_618,
-      }
+    close_4h_series = (
+        df_4h["Close"][ticker_clean]
+        if ticker_clean in df_4h["Close"]
+        else df_4h["Close"]
+    )
+    df_4h_resampled = close_4h_series.resample("4h").last().dropna()
+    close_4h = df_4h_resampled.values.flatten().tolist()
+
+    sma50_4h = (
+        sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
+    )
+    rsi_4h = round(calculate_rsi(close_4h, 14), 1)
+
+    trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
+
+    if current_price >= fib_618 or rsi_1h <= 45:
+      sl = round(recent_low * 0.995, 4)
+      if sl >= current_price:
+        sl = round(current_price * 0.98, 4)
+      risk = current_price - sl
+      tp1 = round(current_price + (risk * 3), 4)
+
+      direction = (
+          "🟢 LONG (Bullish Trend)"
+          if trend_4h == "BULLISH"
+          else "🟡 LONG (Pullback Setup)"
+      )
+
+    elif rsi_1h >= 55 or current_price < fib_618:
+      sl = round(recent_high * 1.005, 4)
+      if sl <= current_price:
+        sl = round(current_price * 1.02, 4)
+      risk = sl - current_price
+      tp1 = round(current_price - (risk * 3), 4)
+
+      direction = (
+          "🔴 SHORT (Bearish Trend)"
+          if trend_4h == "BEARISH"
+          else "⚠️ SHORT (Reversal Setup)"
+      )
     else:
-      st.error(f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker}.")
+      direction = "🟡 NEUTRAL / WAIT"
+      tp1 = None
+      sl = None
+
+    return {
+        "coin": ticker_clean,
+        "price": current_price,
+        "direction": direction,
+        "tp1": tp1,
+        "sl": sl,
+        "rsi_1h": rsi_1h,
+        "rsi_4h": rsi_4h,
+        "trend_4h": trend_4h,
+        "fib_618": fib_618,
+    }
   except Exception as e:
     st.error(f"Error: {str(e)}")
   return None
@@ -328,7 +361,7 @@ with tab_main:
             "Reason": "Auto Analysis",
         }
         save_trade_to_db(new_trade)
-        st.session_state.saved_trades_list = load_saved_trades()
+        st.session_state.saved_trades_list = load_trades_from_db()
         pd.DataFrame(st.session_state.saved_trades_list).to_csv(
             LOG_FILE, index=False
         )
@@ -538,7 +571,6 @@ with tab_dex:
               unsafe_allow_html=True,
           )
 
-          # Προαιρετική Αποθήκευση DEX Trade στη βάση SQL
           if st.button("💾 Αποθήκευση Solana Token στο Log"):
             dex_trade = {
                 "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
