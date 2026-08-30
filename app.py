@@ -150,11 +150,15 @@ def clean_val(val):
 
 
 def calculate_rsi(prices, period=14):
+  if not prices or len(prices) <= period:
+    return 50.0
   delta = pd.Series(prices).diff()
   gain = delta.where(delta > 0, 0).rolling(window=period).mean()
   loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
   rs = gain / loss
   rsi = 100 - (100 / (1 + rs))
+  if rsi.empty or pd.isna(rsi.iloc[-1]):
+    return 50.0
   return rsi.iloc[-1]
 
 
@@ -169,21 +173,30 @@ def get_auto_analysis(symbol_ticker="SOL"):
     else:
       clean_symbol = raw
 
-    url_1h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=1h&limit=168"
-    url_4h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=4h&limit=100"
+    close_1h, high_1h, low_1h, close_4h = [], [], [], []
 
-    res_1h = requests.get(url_1h, timeout=5)
-    res_4h = requests.get(url_4h, timeout=5)
+    # Binance API Call
+    try:
+      url_1h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=1h&limit=168"
+      url_4h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=4h&limit=100"
 
-    if res_1h.status_code == 200 and res_4h.status_code == 200:
-      data_1h = res_1h.json()
-      data_4h = res_4h.json()
+      res_1h = requests.get(url_1h, timeout=5)
+      res_4h = requests.get(url_4h, timeout=5)
 
-      close_1h = [float(candle[4]) for candle in data_1h]
-      high_1h = [float(candle[2]) for candle in data_1h]
-      low_1h = [float(candle[3]) for candle in data_1h]
-      close_4h = [float(candle[4]) for candle in data_4h]
-    else:
+      if res_1h.status_code == 200 and res_4h.status_code == 200:
+        data_1h = res_1h.json()
+        data_4h = res_4h.json()
+        if isinstance(data_1h, list) and len(data_1h) > 0:
+          close_1h = [float(candle[4]) for candle in data_1h]
+          high_1h = [float(candle[2]) for candle in data_1h]
+          low_1h = [float(candle[3]) for candle in data_1h]
+        if isinstance(data_4h, list) and len(data_4h) > 0:
+          close_4h = [float(candle[4]) for candle in data_4h]
+    except Exception:
+      pass
+
+    # Fallback σε yfinance αν το Binance δεν επέστρεψε δεδομένα
+    if not close_1h:
       ticker_clean = (
           f"{clean_symbol[:-4]}-USD"
           if clean_symbol.endswith("USDT")
@@ -196,27 +209,52 @@ def get_auto_analysis(symbol_ticker="SOL"):
           tickers=ticker_clean, period="30d", interval="4h", progress=False
       )
 
-      if df_1h.empty:
-        st.error(f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker}.")
-        return None
+      if not df_1h.empty:
+        close_1h = (
+            df_1h["Close"].dropna().values.flatten().tolist()
+            if "Close" in df_1h
+            else []
+        )
+        high_1h = (
+            df_1h["High"].dropna().values.flatten().tolist()
+            if "High" in df_1h
+            else []
+        )
+        low_1h = (
+            df_1h["Low"].dropna().values.flatten().tolist()
+            if "Low" in df_1h
+            else []
+        )
+      if not df_4h.empty:
+        close_4h = (
+            df_4h["Close"].dropna().values.flatten().tolist()
+            if "Close" in df_4h
+            else []
+        )
 
-      close_1h = df_1h["Close"].values.flatten().tolist()
-      high_1h = df_1h["High"].values.flatten().tolist()
-      low_1h = df_1h["Low"].values.flatten().tolist()
-      close_4h = df_4h["Close"].values.flatten().tolist()
+    # Τελικός έλεγχος διαθεσιμότητας δεδομένων
+    if not close_1h or len(close_1h) < 2:
+      st.error(
+          f"Δεν βρέθηκαν επαρκή δεδομένα για το ticker '{symbol_ticker}'."
+      )
+      return None
 
     current_price = round(float(close_1h[-1]), 4)
-    recent_high = round(float(max(high_1h[-24:])), 4)
-    recent_low = round(float(min(low_1h[-24:])), 4)
+    recent_high = round(float(max(high_1h[-24:])), 4) if high_1h else current_price
+    recent_low = round(float(min(low_1h[-24:])), 4) if low_1h else current_price
 
     rsi_1h = round(calculate_rsi(close_1h, 14), 1)
-    rsi_4h = round(calculate_rsi(close_4h, 14), 1)
+    rsi_4h = (
+        round(calculate_rsi(close_4h, 14), 1) if close_4h else rsi_1h
+    )
 
     price_range = recent_high - recent_low
     fib_618 = round(recent_high - (price_range * 0.618), 4)
 
     sma50_4h = (
-        sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
+        sum(close_4h[-50:]) / len(close_4h[-50:])
+        if len(close_4h) >= 50
+        else current_price
     )
     trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
 
@@ -261,43 +299,6 @@ def get_auto_analysis(symbol_ticker="SOL"):
   except Exception as e:
     st.error(f"Σφάλμα κατά την ανάλυση: {str(e)}")
     return None
-
-
-def fetch_solana_dex_data(token_address):
-  try:
-    url = f"https://api.dexscreener.com/latest/dex/tokens/{token_address.strip()}"
-    res = requests.get(url, timeout=10)
-    if res.status_code == 200:
-      data = res.json()
-      pairs = data.get("pairs", [])
-      if pairs:
-        sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
-        best_pair = sol_pairs[0] if sol_pairs else pairs[0]
-
-        return {
-            "name": best_pair.get("baseToken", {}).get("name", "N/A"),
-            "symbol": best_pair.get("baseToken", {}).get("symbol", "N/A"),
-            "price": float(best_pair.get("priceUsd", 0)),
-            "liquidity": float(
-                best_pair.get("liquidity", {}).get("usd", 0)
-            ),
-            "fdv": float(best_pair.get("fdv", 0)),
-            "volume_24h": float(
-                best_pair.get("volume", {}).get("h24", 0)
-            ),
-            "buys_1h": best_pair.get("txns", {})
-            .get("h1", {})
-            .get("buys", 0),
-            "sells_1h": best_pair.get("txns", {})
-            .get("h1", {})
-            .get("sells", 0),
-            "dex": best_pair.get("dexId", "N/A"),
-            "url": best_pair.get("url", "#"),
-        }
-  except Exception as e:
-    st.error(f"Σφάλμα DEX: {e}")
-  return None
-
 
 # --- UI NAVIGATION ---
 tab_main, tab_dex = st.tabs(
