@@ -165,68 +165,67 @@ def calculate_rsi(prices, period=14):
 # --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (ΔΙΟΡΘΩΜΕΝΗ) ---
 def get_auto_analysis(symbol_ticker="SOL"):
   try:
-    # 1. Καθαρισμός του input
+    # 1. Καθαρισμός του input (π.χ. SOL/USDT -> SOLUSDT)
     raw = symbol_ticker.strip().upper().replace("/", "").replace("-", "")
-
-    if raw.endswith("USDT"):
-      raw = raw[:-4]
+    if not raw.endswith("USDT") and not raw.endswith("USD"):
+      clean_symbol = f"{raw}USDT"
     elif raw.endswith("USD"):
-      raw = raw[:-3]
-
-    ticker_clean = f"{raw}-USD"
-
-    # 2. Κατέβασμα δεδομένων με auto_adjust=True
-    df_1h = yf.download(
-        tickers=ticker_clean, period="7d", interval="1h", auto_adjust=True
-    )
-    df_4h = yf.download(
-        tickers=ticker_clean, period="30d", interval="1h", auto_adjust=True
-    )
-
-    if df_1h.empty:
-      st.error(
-          f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker} (δοκιμάστηκε ως"
-          f" {ticker_clean})."
-      )
-      return None
-
-    # 3. Σωστή διαχείριση MultiIndex στήλων yfinance
-    if isinstance(df_1h.columns, pd.MultiIndex):
-      close_series = df_1h["Close"][ticker_clean]
-      high_series = df_1h["High"][ticker_clean]
-      low_series = df_1h["Low"][ticker_clean]
+      clean_symbol = f"{raw}T"
     else:
-      close_series = df_1h["Close"]
-      high_series = df_1h["High"]
-      low_series = df_1h["Low"]
+      clean_symbol = raw
 
-    close_1h = close_series.dropna().tolist()
-    high_1h = high_series.dropna().tolist()
-    low_1h = low_series.dropna().tolist()
+    # 2. Ανάκτηση Live δεδομένων 1H & 4H από το Binance Public API
+    url_1h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=1h&limit=168"
+    url_4h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=4h&limit=100"
 
+    res_1h = requests.get(url_1h, timeout=5)
+    res_4h = requests.get(url_4h, timeout=5)
+
+    if res_1h.status_code == 200 and res_4h.status_code == 200:
+      data_1h = res_1h.json()
+      data_4h = res_4h.json()
+
+      close_1h = [float(candle[4]) for candle in data_1h]
+      high_1h = [float(candle[2]) for candle in data_1h]
+      low_1h = [float(candle[3]) for candle in data_1h]
+      close_4h = [float(candle[4]) for candle in data_4h]
+    else:
+      # Fallback σε yfinance αν αποτύχει το Binance
+      ticker_clean = (
+          f"{clean_symbol[:-4]}-USD"
+          if clean_symbol.endswith("USDT")
+          else f"{clean_symbol}-USD"
+      )
+      df_1h = yf.download(
+          tickers=ticker_clean, period="7d", interval="1h", progress=False
+      )
+      df_4h = yf.download(
+          tickers=ticker_clean, period="30d", interval="4h", progress=False
+      )
+
+      if df_1h.empty:
+        st.error(f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker}.")
+        return None
+
+      close_1h = df_1h["Close"].values.flatten().tolist()
+      high_1h = df_1h["High"].values.flatten().tolist()
+      low_1h = df_1h["Low"].values.flatten().tolist()
+      close_4h = df_4h["Close"].values.flatten().tolist()
+
+    # 3. Υπολογισμοί Τεχνικής Ανάλυσης
     current_price = round(float(close_1h[-1]), 4)
     recent_high = round(float(max(high_1h[-24:])), 4)
     recent_low = round(float(min(low_1h[-24:])), 4)
 
     rsi_1h = round(calculate_rsi(close_1h, 14), 1)
+    rsi_4h = round(calculate_rsi(close_4h, 14), 1)
 
     price_range = recent_high - recent_low
     fib_618 = round(recent_high - (price_range * 0.618), 4)
 
-    # Διαχείριση 4H δεδομένων
-    if isinstance(df_4h.columns, pd.MultiIndex):
-      close_4h_series = df_4h["Close"][ticker_clean]
-    else:
-      close_4h_series = df_4h["Close"]
-
-    df_4h_resampled = close_4h_series.resample("4h").last().dropna()
-    close_4h = df_4h_resampled.tolist()
-
     sma50_4h = (
         sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
     )
-    rsi_4h = round(calculate_rsi(close_4h, 14), 1)
-
     trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
 
     if current_price >= fib_618 or rsi_1h <= 45:
@@ -260,7 +259,7 @@ def get_auto_analysis(symbol_ticker="SOL"):
       sl = None
 
     return {
-        "coin": ticker_clean,
+        "coin": clean_symbol,
         "price": current_price,
         "direction": direction,
         "tp1": tp1,
@@ -270,9 +269,10 @@ def get_auto_analysis(symbol_ticker="SOL"):
         "trend_4h": trend_4h,
         "fib_618": fib_618,
     }
+
   except Exception as e:
-    st.error(f"Error: {str(e)}")
-  return None
+    st.error(f"Σφάλμα κατά την ανάλυση: {str(e)}")
+    return None
 
 # --- 4. SOLANA ON-CHAIN / DEX SCANNER (DEXSCREENER API) ---
 def fetch_solana_dex_data(token_address):
