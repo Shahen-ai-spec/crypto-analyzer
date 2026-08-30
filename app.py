@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sqlite3
 import time
 from datetime import datetime
 
@@ -20,22 +21,115 @@ st.set_page_config(page_title="PANDA CRYPTO Analyzer", layout="wide")
 st.title("🐼 PANDA CRYPTO Analyzer")
 
 LOG_FILE = "trade_log.csv"
+DB_FILE = "panda_analyzer.db"
 
 
-# --- ΦΟΡΤΩΣΗ ΔΕΔΟΜΕΝΩΝ ---
+# --- 0. SQLite ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ ---
+def init_db():
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+  cursor.execute("""
+        CREATE TABLE IF NOT EXISTS trades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            pair TEXT,
+            direction TEXT,
+            entry REAL,
+            sl REAL,
+            tp1 REAL,
+            status TEXT,
+            reason TEXT
+        )
+    """)
+  conn.commit()
+  conn.close()
+
+
+def save_trade_to_db(trade):
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+  cursor.execute(
+      """
+        INSERT INTO trades (date, pair, direction, entry, sl, tp1, status, reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+      (
+          trade.get("Date"),
+          trade.get("Pair"),
+          trade.get("Direction"),
+          trade.get("Entry"),
+          trade.get("SL"),
+          trade.get("TP1"),
+          trade.get("Status", "Pending"),
+          trade.get("Reason", ""),
+      ),
+  )
+  conn.commit()
+  conn.close()
+
+
+def load_trades_from_db():
+  init_db()
+  conn = sqlite3.connect(DB_FILE)
+  df = pd.read_sql_query("SELECT * FROM trades ORDER BY id DESC", conn)
+  conn.close()
+  if not df.empty:
+    df.rename(
+        columns={
+            "date": "Date",
+            "pair": "Pair",
+            "direction": "Direction",
+            "entry": "Entry",
+            "sl": "SL",
+            "tp1": "TP1",
+            "status": "Status",
+            "reason": "Reason",
+        },
+        inplace=True,
+    )
+    return df.to_dict("records")
+  return []
+
+
+def delete_trade_from_db(trade_id):
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+  cursor.execute("DELETE FROM trades WHERE id = ?", (trade_id,))
+  conn.commit()
+  conn.close()
+
+
+def clear_db():
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+  cursor.execute("DELETE FROM trades")
+  conn.commit()
+  conn.close()
+
+
+init_db()
+
+
+# --- ΦΟΡΤΩΣΗ ΔΕΔΟΜΕΝΩΝ (DB & CSV Sync) ---
 def load_saved_trades():
-    if os.path.exists(LOG_FILE):
-        try:
-            df_disk = pd.read_csv(LOG_FILE)
-            return df_disk.to_dict("records")
-        except Exception:
-            return []
-    return []
+  db_trades = load_trades_from_db()
+  if db_trades:
+    return db_trades
+  if os.path.exists(LOG_FILE):
+    try:
+      df_disk = pd.read_csv(LOG_FILE)
+      trades = df_disk.to_dict("records")
+      for t in trades:
+        save_trade_to_db(t)
+      return load_trades_from_db()
+    except Exception:
+      return []
+  return []
 
 
 # Αρχικοποίηση Session State
 if "saved_trades_list" not in st.session_state:
-    st.session_state.saved_trades_list = load_saved_trades()
+  st.session_state.saved_trades_list = load_saved_trades()
 
 # API Client
 api_key = st.secrets.get("GEMINI_API_KEY")
@@ -43,131 +137,170 @@ client = genai.Client(api_key=api_key) if api_key else None
 
 
 class TradeSetup(BaseModel):
-    pair: str
-    direction: str
-    entry: float
-    sl: float
-    tp1: float
-    reason: str
+  pair: str
+  direction: str
+  entry: float
+  sl: float
+  tp1: float
+  reason: str
 
 
 def clean_val(val):
-    try:
-        match = re.search(r"\d+\.?\d*", str(val))
-        return float(match.group()) if match else 0.0
-    except Exception:
-        return 0.0
+  try:
+    match = re.search(r"\d+\.?\d*", str(val))
+    return float(match.group()) if match else 0.0
+  except Exception:
+    return 0.0
 
 
 def calculate_rsi(prices, period=14):
-    delta = pd.Series(prices).diff()
-    gain = delta.where(delta > 0, 0).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi.iloc[-1]
+  delta = pd.Series(prices).diff()
+  gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+  loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+  rs = gain / loss
+  rsi = 100 - (100 / (1 + rs))
+  return rsi.iloc[-1]
 
 
 def get_auto_analysis(symbol_ticker="SOL-USD"):
-    try:
-        ticker_clean = symbol_ticker.strip().upper().replace("/", "-")
-        if not ticker_clean.endswith("-USD") and not ticker_clean.endswith(
-            "-USDT"
-        ):
-            ticker_clean = f"{ticker_clean}-USD"
-        else:
-            ticker_clean = ticker_clean.replace("-USDT", "-USD")
+  try:
+    ticker_clean = symbol_ticker.strip().upper().replace("/", "-")
+    if not ticker_clean.endswith("-USD") and not ticker_clean.endswith("-USDT"):
+      ticker_clean = f"{ticker_clean}-USD"
+    else:
+      ticker_clean = ticker_clean.replace("-USDT", "-USD")
 
-        df_1h = yf.download(tickers=ticker_clean, period="7d", interval="1h")
-        df_4h = yf.download(tickers=ticker_clean, period="30d", interval="1h")
+    df_1h = yf.download(tickers=ticker_clean, period="7d", interval="1h")
+    df_4h = yf.download(tickers=ticker_clean, period="30d", interval="1h")
 
-        if not df_1h.empty:
-            close_1h = df_1h["Close"].values.flatten().tolist()
-            high_1h = df_1h["High"].values.flatten().tolist()
-            low_1h = df_1h["Low"].values.flatten().tolist()
+    if not df_1h.empty:
+      close_1h = df_1h["Close"].values.flatten().tolist()
+      high_1h = df_1h["High"].values.flatten().tolist()
+      low_1h = df_1h["Low"].values.flatten().tolist()
 
-            current_price = round(float(close_1h[-1]), 4)
-            recent_high = round(float(max(high_1h[-24:])), 4)
-            recent_low = round(float(min(low_1h[-24:])), 4)
+      current_price = round(float(close_1h[-1]), 4)
+      recent_high = round(float(max(high_1h[-24:])), 4)
+      recent_low = round(float(min(low_1h[-24:])), 4)
 
-            rsi_1h = round(calculate_rsi(close_1h, 14), 1)
+      rsi_1h = round(calculate_rsi(close_1h, 14), 1)
 
-            price_range = recent_high - recent_low
-            fib_618 = round(recent_high - (price_range * 0.618), 4)
+      price_range = recent_high - recent_low
+      fib_618 = round(recent_high - (price_range * 0.618), 4)
 
-            df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
-            close_4h = df_4h_resampled.values.flatten().tolist()
+      df_4h_resampled = df_4h["Close"].resample("4h").last().dropna()
+      close_4h = df_4h_resampled.values.flatten().tolist()
 
-            sma50_4h = (
-                sum(close_4h[-50:]) / 50
-                if len(close_4h) >= 50
-                else current_price
-            )
-            rsi_4h = round(calculate_rsi(close_4h, 14), 1)
+      sma50_4h = (
+          sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
+      )
+      rsi_4h = round(calculate_rsi(close_4h, 14), 1)
 
-            trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
+      trend_4h = "BULLISH" if current_price > sma50_4h else "BEARISH"
 
-            if current_price >= fib_618 or rsi_1h <= 45:
-                sl = round(recent_low * 0.995, 4)
-                if sl >= current_price:
-                    sl = round(current_price * 0.98, 4)
-                risk = current_price - sl
-                tp1 = round(current_price + (risk * 3), 4)
+      if current_price >= fib_618 or rsi_1h <= 45:
+        sl = round(recent_low * 0.995, 4)
+        if sl >= current_price:
+          sl = round(current_price * 0.98, 4)
+        risk = current_price - sl
+        tp1 = round(current_price + (risk * 3), 4)
 
-                direction = (
-                    "🟢 LONG (Bullish Trend)"
-                    if trend_4h == "BULLISH"
-                    else "🟡 LONG (Pullback Setup)"
-                )
+        direction = (
+            "🟢 LONG (Bullish Trend)"
+            if trend_4h == "BULLISH"
+            else "🟡 LONG (Pullback Setup)"
+        )
 
-            elif rsi_1h >= 55 or current_price < fib_618:
-                sl = round(recent_high * 1.005, 4)
-                if sl <= current_price:
-                    sl = round(current_price * 1.02, 4)
-                risk = sl - current_price
-                tp1 = round(current_price - (risk * 3), 4)
+      elif rsi_1h >= 55 or current_price < fib_618:
+        sl = round(recent_high * 1.005, 4)
+        if sl <= current_price:
+          sl = round(current_price * 1.02, 4)
+        risk = sl - current_price
+        tp1 = round(current_price - (risk * 3), 4)
 
-                direction = (
-                    "🔴 SHORT (Bearish Trend)"
-                    if trend_4h == "BEARISH"
-                    else "⚠️ SHORT (Reversal Setup)"
-                )
-            else:
-                direction = "🟡 NEUTRAL / WAIT"
-                tp1 = None
-                sl = None
+        direction = (
+            "🔴 SHORT (Bearish Trend)"
+            if trend_4h == "BEARISH"
+            else "⚠️ SHORT (Reversal Setup)"
+        )
+      else:
+        direction = "🟡 NEUTRAL / WAIT"
+        tp1 = None
+        sl = None
 
-            return {
-                "coin": ticker_clean,
-                "price": current_price,
-                "direction": direction,
-                "tp1": tp1,
-                "sl": sl,
-                "rsi_1h": rsi_1h,
-                "rsi_4h": rsi_4h,
-                "trend_4h": trend_4h,
-                "fib_618": fib_618,
-            }
-        else:
-            st.error(f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker}.")
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
-    return None
+      return {
+          "coin": ticker_clean,
+          "price": current_price,
+          "direction": direction,
+          "tp1": tp1,
+          "sl": sl,
+          "rsi_1h": rsi_1h,
+          "rsi_4h": rsi_4h,
+          "trend_4h": trend_4h,
+          "fib_618": fib_618,
+      }
+    else:
+      st.error(f"Δεν βρέθηκαν δεδομένα για το {symbol_ticker}.")
+  except Exception as e:
+    st.error(f"Error: {str(e)}")
+  return None
 
 
-# --- 1. ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ ---
-st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
+# --- 4. SOLANA ON-CHAIN / DEX SCANNER (DEXSCREENER API) ---
+def fetch_solana_dex_data(token_address):
+  try:
+    url = f"https://api.dexscreener.com/latest/dex/tokens/{token_address.strip()}"
+    res = requests.get(url, timeout=10)
+    if res.status_code == 200:
+      data = res.json()
+      pairs = data.get("pairs", [])
+      if pairs:
+        sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+        best_pair = sol_pairs[0] if sol_pairs else pairs[0]
 
-user_input = st.text_input(
-    "Γράψε Ticker (π.χ. BTC, ETH, SOL, XRP):", value="SOL"
+        return {
+            "name": best_pair.get("baseToken", {}).get("name", "N/A"),
+            "symbol": best_pair.get("baseToken", {}).get("symbol", "N/A"),
+            "price": float(best_pair.get("priceUsd", 0)),
+            "liquidity": float(
+                best_pair.get("liquidity", {}).get("usd", 0)
+            ),
+            "fdv": float(best_pair.get("fdv", 0)),
+            "volume_24h": float(
+                best_pair.get("volume", {}).get("h24", 0)
+            ),
+            "buys_1h": best_pair.get("txns", {})
+            .get("h1", {})
+            .get("buys", 0),
+            "sells_1h": best_pair.get("txns", {})
+            .get("h1", {})
+            .get("sells", 0),
+            "dex": best_pair.get("dexId", "N/A"),
+            "url": best_pair.get("url", "#"),
+        }
+  except Exception as e:
+    st.error(f"Σφάλμα κατά τη λήψη DEX δεδομένων: {e}")
+  return None
+
+
+# --- UI NAVIGATION (TABS) ---
+tab_main, tab_dex = st.tabs(
+    ["📊 CEX & Chart Analysis", "🪐 Solana DEX Scanner"]
 )
 
-if st.button("Ανάλυση"):
+with tab_main:
+  # --- 1. ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ ---
+  st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
+
+  user_input = st.text_input(
+      "Γράψε Ticker (π.χ. BTC, ETH, SOL, XRP):", value="SOL"
+  )
+
+  if st.button("Ανάλυση"):
     analysis = get_auto_analysis(user_input)
     if analysis:
-        st.session_state.current_analysis = analysis
+      st.session_state.current_analysis = analysis
 
-if "current_analysis" in st.session_state:
+  if "current_analysis" in st.session_state:
     analysis = st.session_state.current_analysis
 
     st.write(f"**Νόμισμα:** {analysis['coin']}")
@@ -180,147 +313,151 @@ if "current_analysis" in st.session_state:
     st.write(f"**Fibonacci 0.618:** ${analysis['fib_618']}")
 
     if analysis["tp1"] is not None and analysis["sl"] is not None:
-        st.write(f"**Take Profit 1 (TP1):** ${analysis['tp1']}")
-        st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
+      st.write(f"**Take Profit 1 (TP1):** ${analysis['tp1']}")
+      st.write(f"**Stop Loss (SL):** ${analysis['sl']}")
 
-        if st.button("💾 Αποθήκευση Trade"):
-            new_trade = {
-                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "Pair": analysis["coin"],
-                "Direction": analysis["direction"],
-                "Entry": analysis["price"],
-                "SL": analysis["sl"],
-                "TP1": analysis["tp1"],
-                "Status": "Pending",
-                "Reason": "Auto Analysis",
-            }
-            st.session_state.saved_trades_list.append(new_trade)
-            pd.DataFrame(st.session_state.saved_trades_list).to_csv(
-                LOG_FILE, index=False
-            )
-            st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε!")
-            st.rerun()
+      if st.button("💾 Αποθήκευση Trade"):
+        new_trade = {
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Pair": analysis["coin"],
+            "Direction": analysis["direction"],
+            "Entry": analysis["price"],
+            "SL": analysis["sl"],
+            "TP1": analysis["tp1"],
+            "Status": "Pending",
+            "Reason": "Auto Analysis",
+        }
+        save_trade_to_db(new_trade)
+        st.session_state.saved_trades_list = load_saved_trades()
+        pd.DataFrame(st.session_state.saved_trades_list).to_csv(
+            LOG_FILE, index=False
+        )
+        st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε στη βάση!")
+        st.rerun()
 
-# --- 2. UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ (GEMINI AI) ---
-st.divider()
-st.subheader("📷 Ανάλυση Εικόνων Chart (Gemini AI)")
+  # --- 2. UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ (GEMINI AI) ---
+  st.divider()
+  st.subheader("📷 Ανάλυση Εικόνων Chart (Gemini AI)")
 
-uploaded_files = st.file_uploader(
-    "Επιλογή εικόνων chart...",
-    type=["png", "jpg", "jpeg", "webp"],
-    accept_multiple_files=True,
-    key="chart_uploader",
-)
+  uploaded_files = st.file_uploader(
+      "Επιλογή εικόνων chart...",
+      type=["png", "jpg", "jpeg", "webp"],
+      accept_multiple_files=True,
+      key="chart_uploader",
+  )
 
-if uploaded_files:
+  if uploaded_files:
     processed_images = []
     cols = st.columns(len(uploaded_files))
 
     for idx, uploaded_file in enumerate(uploaded_files):
-        img = Image.open(uploaded_file).convert("RGB")
-        enhancer = ImageEnhance.Contrast(img)
-        enhanced_img = enhancer.enhance(1.2)
+      img = Image.open(uploaded_file).convert("RGB")
+      enhancer = ImageEnhance.Contrast(img)
+      enhanced_img = enhancer.enhance(1.2)
 
-        processed_images.append(enhanced_img)
-        with cols[idx]:
-            st.image(
-                img, caption=f"Εικόνα {idx+1}", use_container_width=True
-            )
+      processed_images.append(enhanced_img)
+      with cols[idx]:
+        st.image(
+            img, caption=f"Εικόνα {idx+1}", use_container_width=True
+        )
 
     if st.button("🚀 Ανάλυση Chart με AI", type="primary"):
-        if not client:
-            st.error(
-                "Δεν βρέθηκε το GEMINI_API_KEY στα Secrets του Streamlit!"
-            )
-        else:
-            try:
-                prompt = """
-                Analyze the chart image to find the best immediate trade setup (LONG or SHORT) with strict risk controls.
-                Ensure Take Profit (TP1) achieves strictly a 1:3 Risk-to-Reward Ratio (RRR = 1:3) relative to entry and buffered SL.
-                Read the exact crypto pair symbol from the chart.
-                """
+      if not client:
+        st.error(
+            "Δεν βρέθηκε το GEMINI_API_KEY στα Secrets του Streamlit!"
+        )
+      else:
+        try:
+          prompt = """
+                    Analyze the chart image to find the best immediate trade setup (LONG or SHORT) with strict risk controls.
+                    Ensure Take Profit (TP1) achieves strictly a 1:3 Risk-to-Reward Ratio (RRR = 1:3) relative to entry and buffered SL.
+                    Read the exact crypto pair symbol from the chart.
+                    """
 
-                response = client.models.generate_content(
-                    model="gemini-1.5-flash",
-                    contents=processed_images + [prompt],
-                    config=types.GenerateContentConfig(
-                        temperature=0.2,
-                        response_mime_type="application/json",
-                        response_schema=TradeSetup,
-                    ),
-                )
+          response = client.models.generate_content(
+              model="gemini-1.5-flash",
+              contents=processed_images + [prompt],
+              config=types.GenerateContentConfig(
+                  temperature=0.2,
+                  response_mime_type="application/json",
+                  response_schema=TradeSetup,
+              ),
+          )
 
-                st.session_state["parsed_trade"] = response.parsed.model_dump()
-                st.success("Η ανάλυση του screenshot ολοκληρώθηκε!")
+          st.session_state["parsed_trade"] = response.parsed.model_dump()
+          st.success("Η ανάλυση του screenshot ολοκληρώθηκε!")
 
-            except Exception as e:
-                st.error(f"Σφάλμα κατά την ανάλυση: {e}")
+        except Exception as e:
+          st.error(f"Σφάλμα κατά την ανάλυση: {e}")
 
-# Φόρμα Επιβεβαίωσης AI
-if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
+  # Φόρμα Επιβεβαίωσης AI
+  if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
     trade_data = st.session_state["parsed_trade"]
     st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
 
     with st.form("confirm_trade_form"):
-        col_f1, col_f2 = st.columns(2)
+      col_f1, col_f2 = st.columns(2)
 
-        with col_f1:
-            f_pair = st.text_input(
-                "Pair", value=trade_data.get("pair", "BTC/USDT")
-            )
-            dir_val = str(trade_data.get("direction", "NO TRADE")).upper()
-            opts = ["LONG", "SHORT", "NO TRADE"]
-            dir_idx = opts.index(dir_val) if dir_val in opts else 2
-            f_dir = st.selectbox("Direction", opts, index=dir_idx)
+      with col_f1:
+        f_pair = st.text_input(
+            "Pair", value=trade_data.get("pair", "BTC/USDT")
+        )
+        dir_val = str(trade_data.get("direction", "NO TRADE")).upper()
+        opts = ["LONG", "SHORT", "NO TRADE"]
+        dir_idx = opts.index(dir_val) if dir_val in opts else 2
+        f_dir = st.selectbox("Direction", opts, index=dir_idx)
 
-            f_entry = st.number_input(
-                "Entry Price",
-                value=clean_val(trade_data.get("entry")),
-                format="%.4f",
-            )
-            f_sl = st.number_input(
-                "Stop Loss (SL)",
-                value=clean_val(trade_data.get("sl")),
-                format="%.4f",
-            )
-
-        with col_f2:
-            f_tp1 = st.number_input(
-                "Take Profit 1 (TP1)",
-                value=clean_val(trade_data.get("tp1")),
-                format="%.4f",
-            )
-            f_reason = st.text_area(
-                "Analysis / Reason", value=trade_data.get("reason", "")
-            )
-
-        submit_save = st.form_submit_button("💾 Αποθήκευση AI Trade")
-
-    if submit_save:
-        new_entry = {
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "Pair": f_pair,
-            "Direction": f_dir,
-            "Entry": f_entry,
-            "SL": f_sl,
-            "TP1": f_tp1,
-            "Status": "Pending",
-            "Reason": f_reason,
-        }
-        st.session_state.saved_trades_list.append(new_entry)
-        pd.DataFrame(st.session_state.saved_trades_list).to_csv(
-            LOG_FILE, index=False
+        f_entry = st.number_input(
+            "Entry Price",
+            value=clean_val(trade_data.get("entry")),
+            format="%.4f",
+        )
+        f_sl = st.number_input(
+            "Stop Loss (SL)",
+            value=clean_val(trade_data.get("sl")),
+            format="%.4f",
         )
 
-        st.session_state["parsed_trade"] = None
-        st.success("Το trade αποθηκεύτηκε επιτυχώς!")
-        st.rerun()
+      with col_f2:
+        f_tp1 = st.number_input(
+            "Take Profit 1 (TP1)",
+            value=clean_val(trade_data.get("tp1")),
+            format="%.4f",
+        )
+        f_reason = st.text_area(
+            "Analysis / Reason", value=trade_data.get("reason", "")
+        )
 
-# --- 3. LIVE TRADE TRACKER & ΔΙΑΓΡΑΦΗ ---
-st.divider()
-st.subheader("📜 Live Trade Log Tracker")
+      submit_save = st.form_submit_button("💾 Αποθήκευση AI Trade")
 
-if st.session_state.saved_trades_list:
+    if submit_save:
+      new_entry = {
+          "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+          "Pair": f_pair,
+          "Direction": f_dir,
+          "Entry": f_entry,
+          "SL": f_sl,
+          "TP1": f_tp1,
+          "Status": "Pending",
+          "Reason": f_reason,
+      }
+      save_trade_to_db(new_entry)
+      st.session_state.saved_trades_list = load_trades_from_db()
+      pd.DataFrame(st.session_state.saved_trades_list).to_csv(
+          LOG_FILE, index=False
+      )
+
+      st.session_state["parsed_trade"] = None
+      st.success("Το trade αποθηκεύτηκε επιτυχώς στη βάση δεδομένων SQL!")
+      st.rerun()
+
+  # --- 3. LIVE TRADE TRACKER (SQL & CSV) ---
+  st.divider()
+  st.subheader("📜 Live Trade Log Tracker (Database SQL)")
+
+  st.session_state.saved_trades_list = load_trades_from_db()
+
+  if st.session_state.saved_trades_list:
     df_display = pd.DataFrame(st.session_state.saved_trades_list)
     st.dataframe(df_display, use_container_width=True)
 
@@ -328,38 +465,101 @@ if st.session_state.saved_trades_list:
     col_del1, col_del2 = st.columns([2, 1])
 
     with col_del1:
-        trade_options = []
-        for idx, row in df_display.iterrows():
-            pair_name = row.get("Pair") or row.get("Ticker") or "Unknown"
-            direction = row.get("Direction") or row.get("Signal") or "N/A"
-            date_val = row.get("Date") or "Live"
-
-            trade_options.append(
-                f"{idx}: {pair_name} ({direction}) - {date_val}"
-            )
-
-        selected_to_delete = st.selectbox(
-            "Επίλεξε Trade για διαγραφή:", trade_options
+      trade_options = []
+      for idx, row in df_display.iterrows():
+        t_id = row.get("id") or idx
+        pair_name = row.get("Pair") or "Unknown"
+        direction = row.get("Direction") or "N/A"
+        date_val = row.get("Date") or "Live"
+        trade_options.append(
+            f"ID {t_id}: {pair_name} ({direction}) - {date_val}"
         )
 
-        if st.button("❌ Διαγραφή Επιλεγμένου Trade"):
-            row_idx = int(selected_to_delete.split(":")[0])
-            st.session_state.saved_trades_list.pop(row_idx)
+      selected_to_delete = st.selectbox(
+          "Επίλεξε Trade για διαγραφή:", trade_options
+      )
 
-            df_updated = pd.DataFrame(st.session_state.saved_trades_list)
-            df_updated.to_csv(LOG_FILE, index=False)
-
-            st.success("Το trade διαγράφηκε!")
-            st.rerun()
+      if st.button("❌ Διαγραφή Επιλεγμένου Trade"):
+        raw_id = selected_to_delete.split(":")[0].replace("ID ", "").strip()
+        if raw_id.isdigit():
+          delete_trade_from_db(int(raw_id))
+        st.session_state.saved_trades_list = load_trades_from_db()
+        pd.DataFrame(st.session_state.saved_trades_list).to_csv(
+            LOG_FILE, index=False
+        )
+        st.success("Το trade διαγράφηκε από τη βάση!")
+        st.rerun()
 
     with col_del2:
-        st.write(" ")
-        st.write(" ")
-        if st.button("🗑️ Καθαρισμός Όλων", key="clear_log_btn"):
-            st.session_state.saved_trades_list = []
-            if os.path.exists(LOG_FILE):
-                os.remove(LOG_FILE)
-            st.success("Όλα τα trades διαγράφηκαν!")
-            st.rerun()
-else:
-    st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades στον πίνακα.")
+      st.write(" ")
+      st.write(" ")
+      if st.button("🗑️ Καθαρισμός Όλων", key="clear_log_btn"):
+        clear_db()
+        st.session_state.saved_trades_list = []
+        if os.path.exists(LOG_FILE):
+          os.remove(LOG_FILE)
+        st.success("Όλα τα trades διαγράφηκαν από τη βάση δεδομένων SQL!")
+        st.rerun()
+  else:
+    st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades στη βάση δεδομένων SQL.")
+
+with tab_dex:
+  st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
+
+  token_contract = st.text_input(
+      "Εισάγαγε Contract Address από Solana Token (π.χ. Raydium/Meteora):",
+      value="",
+  )
+
+  if st.button("🔍 Scan Token"):
+    if token_contract:
+      with st.spinner("Παραλαβή On-Chain δεδομένων..."):
+        dex_info = fetch_solana_dex_data(token_contract)
+        if dex_info:
+          st.success(
+              f"Βρέθηκε Token: {dex_info['name']} ({dex_info['symbol']})"
+          )
+
+          col1, col2, col3, col4 = st.columns(4)
+          col1.metric("Τιμή", f"${dex_info['price']:.6f}")
+          col2.metric("Liquidity", f"${dex_info['liquidity']:,.2f}")
+          col3.metric("24h Volume", f"${dex_info['volume_24h']:,.2f}")
+          col4.metric("FDV / Market Cap", f"${dex_info['fdv']:,.2f}")
+
+          st.divider()
+
+          col_b1, col_b2, col_b3 = st.columns(3)
+          col_b1.metric("DEX", dex_info["dex"].upper())
+          col_b2.metric("1h Buys", dex_info["buys_1h"])
+          col_b3.metric("1h Sells", dex_info["sells_1h"])
+
+          st.markdown(
+              f"🔗 [Άνοιγμα στο DexScreener]({dex_info['url']})",
+              unsafe_allow_html=True,
+          )
+
+          # Προαιρετική Αποθήκευση DEX Trade στη βάση SQL
+          if st.button("💾 Αποθήκευση Solana Token στο Log"):
+            dex_trade = {
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "Pair": f"{dex_info['symbol']}/SOL",
+                "Direction": "SOLANA DEX",
+                "Entry": dex_info["price"],
+                "SL": 0.0,
+                "TP1": 0.0,
+                "Status": "Watched",
+                "Reason": (
+                    f"Liquidity: ${dex_info['liquidity']:,.0f} | 1h"
+                    f" Buys/Sells: {dex_info['buys_1h']}/{dex_info['sells_1h']}"
+                ),
+            }
+            save_trade_to_db(dex_trade)
+            st.session_state.saved_trades_list = load_trades_from_db()
+            st.success("Το Solana token αποθηκεύτηκε στη βάση δεδομένων SQL!")
+        else:
+          st.error(
+              "Δεν βρέθηκαν δεδομένα. Βεβαιώσου ότι το Contract Address είναι"
+              " σωστό."
+          )
+    else:
+      st.warning("Παρακαλώ συμπλήρωσε ένα σωστό Contract Address.")
