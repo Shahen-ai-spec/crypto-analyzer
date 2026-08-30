@@ -165,87 +165,78 @@ def calculate_rsi(prices, period=14):
 # --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (BINANCE API + FALLBACK) ---
 def get_auto_analysis(symbol_ticker="SOL"):
   try:
-    raw = symbol_ticker.strip().upper().replace("/", "").replace("-", "")
-    if not raw.endswith("USDT") and not raw.endswith("USD"):
-      clean_symbol = f"{raw}USDT"
-    elif raw.endswith("USD"):
-      clean_symbol = f"{raw}T"
-    else:
-      clean_symbol = raw
+    # 1. Καθαρισμός και χαρτογράφηση Symbol σε CoinGecko ID
+    raw = symbol_ticker.strip().lower().replace("/", "").replace("-", "")
+    if raw.endswith("usdt") or raw.endswith("usdc"):
+      raw = raw[:-4]
+    elif raw.endswith("usd"):
+      raw = raw[:-3]
 
-    close_1h, high_1h, low_1h, close_4h = [], [], [], []
+    # Crypto ID Mapping για τα δημοφιλή νομίσματα
+    crypto_map = {
+        "sol": "solana",
+        "btc": "bitcoin",
+        "eth": "ethereum",
+        "xrp": "ripple",
+        "ada": "cardano",
+        "avax": "avalanche-2",
+        "doge": "dogecoin",
+        "link": "chainlink",
+        "sui": "sui",
+        "near": "near",
+    }
 
-    # Binance API Call
-    try:
-      url_1h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=1h&limit=168"
-      url_4h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=4h&limit=100"
+    coin_id = crypto_map.get(raw, raw)
 
-      res_1h = requests.get(url_1h, timeout=5)
-      res_4h = requests.get(url_4h, timeout=5)
+    # 2. Κλήση CoinGecko API (7 ημέρες ωριαίων/ημερήσιων δεδομένων)
+    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=7"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    res = requests.get(url, headers=headers, timeout=10)
 
-      if res_1h.status_code == 200 and res_4h.status_code == 200:
-        data_1h = res_1h.json()
-        data_4h = res_4h.json()
-        if isinstance(data_1h, list) and len(data_1h) > 0:
-          close_1h = [float(candle[4]) for candle in data_1h]
-          high_1h = [float(candle[2]) for candle in data_1h]
-          low_1h = [float(candle[3]) for candle in data_1h]
-        if isinstance(data_4h, list) and len(data_4h) > 0:
-          close_4h = [float(candle[4]) for candle in data_4h]
-    except Exception:
-      pass
+    close_1h = []
+    if res.status_code == 200:
+      data = res.json()
+      prices = data.get("prices", [])
+      if prices:
+        close_1h = [point[1] for point in prices]
 
-    # Fallback σε yfinance αν το Binance δεν επέστρεψε δεδομένα
+    # Fallback σε Binance αν αποτύχει το CoinGecko
     if not close_1h:
-      ticker_clean = (
-          f"{clean_symbol[:-4]}-USD"
-          if clean_symbol.endswith("USDT")
-          else f"{clean_symbol}-USD"
-      )
-      df_1h = yf.download(
-          tickers=ticker_clean, period="7d", interval="1h", progress=False
-      )
-      df_4h = yf.download(
-          tickers=ticker_clean, period="30d", interval="4h", progress=False
-      )
+      clean_symbol = f"{raw.upper()}USDT"
+      url_b = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=1h&limit=168"
+      res_b = requests.get(url_b, timeout=5)
+      if res_b.status_code == 200:
+        data_b = res_b.json()
+        if isinstance(data_b, list) and len(data_b) > 0:
+          close_1h = [float(candle[4]) for candle in data_b]
 
-      if not df_1h.empty:
-        close_1h = (
-            df_1h["Close"].dropna().values.flatten().tolist()
-            if "Close" in df_1h
-            else []
-        )
-        high_1h = (
-            df_1h["High"].dropna().values.flatten().tolist()
-            if "High" in df_1h
-            else []
-        )
-        low_1h = (
-            df_1h["Low"].dropna().values.flatten().tolist()
-            if "Low" in df_1h
-            else []
-        )
-      if not df_4h.empty:
-        close_4h = (
-            df_4h["Close"].dropna().values.flatten().tolist()
-            if "Close" in df_4h
-            else []
-        )
-
-    # Τελικός έλεγχος διαθεσιμότητας δεδομένων
-    if not close_1h or len(close_1h) < 2:
+    # Έλεγχος αν βρέθηκαν δεδομένα
+    if not close_1h or len(close_1h) < 15:
       st.error(
-          f"Δεν βρέθηκαν επαρκή δεδομένα για το ticker '{symbol_ticker}'."
+          f"Δεν βρέθηκαν επαρκή δεδομένα για το '{symbol_ticker}'. Δοκίμασε"
+          " ξανά σε λίγο."
       )
       return None
 
+    # 3. Υπολογισμοί Τεχνικής Ανάλυσης
     current_price = round(float(close_1h[-1]), 4)
-    recent_high = round(float(max(high_1h[-24:])), 4) if high_1h else current_price
-    recent_low = round(float(min(low_1h[-24:])), 4) if low_1h else current_price
+    recent_high = (
+        round(float(max(close_1h[-24:])), 4)
+        if len(close_1h) >= 24
+        else current_price
+    )
+    recent_low = (
+        round(float(min(close_1h[-24:])), 4)
+        if len(close_1h) >= 24
+        else current_price
+    )
 
     rsi_1h = round(calculate_rsi(close_1h, 14), 1)
+
+    # Υπολογισμός 4H Trend (δείγμα ανά 4 στοιχεία)
+    close_4h = close_1h[::4]
     rsi_4h = (
-        round(calculate_rsi(close_4h, 14), 1) if close_4h else rsi_1h
+        round(calculate_rsi(close_4h, 14), 1) if len(close_4h) > 14 else rsi_1h
     )
 
     price_range = recent_high - recent_low
@@ -286,7 +277,7 @@ def get_auto_analysis(symbol_ticker="SOL"):
       sl = None
 
     return {
-        "coin": clean_symbol,
+        "coin": f"{raw.upper()}/USD",
         "price": current_price,
         "direction": direction,
         "tp1": tp1,
@@ -296,10 +287,10 @@ def get_auto_analysis(symbol_ticker="SOL"):
         "trend_4h": trend_4h,
         "fib_618": fib_618,
     }
+
   except Exception as e:
     st.error(f"Σφάλμα κατά την ανάλυση: {str(e)}")
     return None
-
 # --- UI NAVIGATION ---
 tab_main, tab_dex = st.tabs(
     ["📊 CEX & Chart Analysis", "🪐 Solana DEX Scanner"]
