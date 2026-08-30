@@ -5,7 +5,6 @@ import sqlite3
 import time
 from datetime import datetime
 
-import ccxt
 from google import genai
 from google.genai import types
 import pandas as pd
@@ -110,7 +109,6 @@ def clear_db():
 init_db()
 
 
-# --- ΦΟΡΤΩΣΗ ΔΕΔΟΜΕΝΩΝ (DB & CSV Sync) ---
 def load_saved_trades():
   db_trades = load_trades_from_db()
   if db_trades:
@@ -127,11 +125,9 @@ def load_saved_trades():
   return []
 
 
-# Αρχικοποίηση Session State
 if "saved_trades_list" not in st.session_state:
   st.session_state.saved_trades_list = load_saved_trades()
 
-# API Client
 api_key = st.secrets.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
 
@@ -162,10 +158,9 @@ def calculate_rsi(prices, period=14):
   return rsi.iloc[-1]
 
 
-# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (ΔΙΟΡΘΩΜΕΝΗ) ---
+# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (BINANCE API + FALLBACK) ---
 def get_auto_analysis(symbol_ticker="SOL"):
   try:
-    # 1. Καθαρισμός του input (π.χ. SOL/USDT -> SOLUSDT)
     raw = symbol_ticker.strip().upper().replace("/", "").replace("-", "")
     if not raw.endswith("USDT") and not raw.endswith("USD"):
       clean_symbol = f"{raw}USDT"
@@ -174,7 +169,6 @@ def get_auto_analysis(symbol_ticker="SOL"):
     else:
       clean_symbol = raw
 
-    # 2. Ανάκτηση Live δεδομένων 1H & 4H από το Binance Public API
     url_1h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=1h&limit=168"
     url_4h = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=4h&limit=100"
 
@@ -190,7 +184,6 @@ def get_auto_analysis(symbol_ticker="SOL"):
       low_1h = [float(candle[3]) for candle in data_1h]
       close_4h = [float(candle[4]) for candle in data_4h]
     else:
-      # Fallback σε yfinance αν αποτύχει το Binance
       ticker_clean = (
           f"{clean_symbol[:-4]}-USD"
           if clean_symbol.endswith("USDT")
@@ -212,7 +205,6 @@ def get_auto_analysis(symbol_ticker="SOL"):
       low_1h = df_1h["Low"].values.flatten().tolist()
       close_4h = df_4h["Close"].values.flatten().tolist()
 
-    # 3. Υπολογισμοί Τεχνικής Ανάλυσης
     current_price = round(float(close_1h[-1]), 4)
     recent_high = round(float(max(high_1h[-24:])), 4)
     recent_low = round(float(min(low_1h[-24:])), 4)
@@ -234,20 +226,17 @@ def get_auto_analysis(symbol_ticker="SOL"):
         sl = round(current_price * 0.98, 4)
       risk = current_price - sl
       tp1 = round(current_price + (risk * 3), 4)
-
       direction = (
           "🟢 LONG (Bullish Trend)"
           if trend_4h == "BULLISH"
           else "🟡 LONG (Pullback Setup)"
       )
-
     elif rsi_1h >= 55 or current_price < fib_618:
       sl = round(recent_high * 1.005, 4)
       if sl <= current_price:
         sl = round(current_price * 1.02, 4)
       risk = sl - current_price
       tp1 = round(current_price - (risk * 3), 4)
-
       direction = (
           "🔴 SHORT (Bearish Trend)"
           if trend_4h == "BEARISH"
@@ -269,12 +258,11 @@ def get_auto_analysis(symbol_ticker="SOL"):
         "trend_4h": trend_4h,
         "fib_618": fib_618,
     }
-
   except Exception as e:
     st.error(f"Σφάλμα κατά την ανάλυση: {str(e)}")
     return None
 
-# --- 4. SOLANA ON-CHAIN / DEX SCANNER (DEXSCREENER API) ---
+
 def fetch_solana_dex_data(token_address):
   try:
     url = f"https://api.dexscreener.com/latest/dex/tokens/{token_address.strip()}"
@@ -307,17 +295,16 @@ def fetch_solana_dex_data(token_address):
             "url": best_pair.get("url", "#"),
         }
   except Exception as e:
-    st.error(f"Σφάλμα κατά τη λήψη DEX δεδομένων: {e}")
+    st.error(f"Σφάλμα DEX: {e}")
   return None
 
 
-# --- UI NAVIGATION (TABS) ---
+# --- UI NAVIGATION ---
 tab_main, tab_dex = st.tabs(
     ["📊 CEX & Chart Analysis", "🪐 Solana DEX Scanner"]
 )
 
 with tab_main:
-  # --- 1. ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ ---
   st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
 
   user_input = st.text_input(
@@ -364,7 +351,6 @@ with tab_main:
         st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε στη βάση!")
         st.rerun()
 
-  # --- 2. UPLOAD & ΑΝΑΛΥΣΗ ΕΙΚΟΝΩΝ (GEMINI AI) ---
   st.divider()
   st.subheader("📷 Ανάλυση Εικόνων Chart (Gemini AI)")
 
@@ -383,7 +369,6 @@ with tab_main:
       img = Image.open(uploaded_file).convert("RGB")
       enhancer = ImageEnhance.Contrast(img)
       enhanced_img = enhancer.enhance(1.2)
-
       processed_images.append(enhanced_img)
       with cols[idx]:
         st.image(
@@ -392,9 +377,7 @@ with tab_main:
 
     if st.button("🚀 Ανάλυση Chart με AI", type="primary"):
       if not client:
-        st.error(
-            "Δεν βρέθηκε το GEMINI_API_KEY στα Secrets του Streamlit!"
-        )
+        st.error("Δεν βρέθηκε το GEMINI_API_KEY στα Secrets!")
       else:
         try:
           prompt = """
@@ -412,21 +395,17 @@ with tab_main:
                   response_schema=TradeSetup,
               ),
           )
-
           st.session_state["parsed_trade"] = response.parsed.model_dump()
           st.success("Η ανάλυση του screenshot ολοκληρώθηκε!")
-
         except Exception as e:
           st.error(f"Σφάλμα κατά την ανάλυση: {e}")
 
-  # Φόρμα Επιβεβαίωσης AI
   if "parsed_trade" in st.session_state and st.session_state["parsed_trade"]:
     trade_data = st.session_state["parsed_trade"]
     st.markdown("### 📝 Επιβεβαίωση / Διόρθωση Στοιχείων Trade")
 
     with st.form("confirm_trade_form"):
       col_f1, col_f2 = st.columns(2)
-
       with col_f1:
         f_pair = st.text_input(
             "Pair", value=trade_data.get("pair", "BTC/USDT")
@@ -475,15 +454,12 @@ with tab_main:
       pd.DataFrame(st.session_state.saved_trades_list).to_csv(
           LOG_FILE, index=False
       )
-
       st.session_state["parsed_trade"] = None
-      st.success("Το trade αποθηκεύτηκε επιτυχώς στη βάση δεδομένων SQL!")
+      st.success("Το trade αποθηκεύτηκε επιτυχώς!")
       st.rerun()
 
-  # --- 3. LIVE TRADE TRACKER (SQL & CSV) ---
   st.divider()
   st.subheader("📜 Live Trade Log Tracker (Database SQL)")
-
   st.session_state.saved_trades_list = load_trades_from_db()
 
   if st.session_state.saved_trades_list:
@@ -516,7 +492,7 @@ with tab_main:
         pd.DataFrame(st.session_state.saved_trades_list).to_csv(
             LOG_FILE, index=False
         )
-        st.success("Το trade διαγράφηκε από τη βάση!")
+        st.success("Το trade διαγράφηκε!")
         st.rerun()
 
     with col_del2:
@@ -527,17 +503,15 @@ with tab_main:
         st.session_state.saved_trades_list = []
         if os.path.exists(LOG_FILE):
           os.remove(LOG_FILE)
-        st.success("Όλα τα trades διαγράφηκαν από τη βάση δεδομένων SQL!")
+        st.success("Όλα τα trades διαγράφηκαν!")
         st.rerun()
   else:
-    st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades στη βάση δεδομένων SQL.")
+    st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades.")
 
 with tab_dex:
   st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
-
   token_contract = st.text_input(
-      "Εισάγαγε Contract Address από Solana Token (π.χ. Raydium/Meteora):",
-      value="",
+      "Εισάγαγε Contract Address από Solana Token:", value=""
   )
 
   if st.button("🔍 Scan Token"):
@@ -548,7 +522,6 @@ with tab_dex:
           st.success(
               f"Βρέθηκε Token: {dex_info['name']} ({dex_info['symbol']})"
           )
-
           col1, col2, col3, col4 = st.columns(4)
           col1.metric("Τιμή", f"${dex_info['price']:.6f}")
           col2.metric("Liquidity", f"${dex_info['liquidity']:,.2f}")
@@ -556,7 +529,6 @@ with tab_dex:
           col4.metric("FDV / Market Cap", f"${dex_info['fdv']:,.2f}")
 
           st.divider()
-
           col_b1, col_b2, col_b3 = st.columns(3)
           col_b1.metric("DEX", dex_info["dex"].upper())
           col_b2.metric("1h Buys", dex_info["buys_1h"])
@@ -583,11 +555,8 @@ with tab_dex:
             }
             save_trade_to_db(dex_trade)
             st.session_state.saved_trades_list = load_trades_from_db()
-            st.success("Το Solana token αποθηκεύτηκε στη βάση δεδομένων SQL!")
+            st.success("Το Solana token αποθηκεύτηκε στη βάση!")
         else:
-          st.error(
-              "Δεν βρέθηκαν δεδομένα. Βεβαιώσου ότι το Contract Address είναι"
-              " σωστό."
-          )
+          st.error("Δεν βρέθηκαν δεδομένα.")
     else:
       st.warning("Παρακαλώ συμπλήρωσε ένα σωστό Contract Address.")
