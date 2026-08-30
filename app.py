@@ -165,20 +165,23 @@ def calculate_rsi(prices, period=14):
 # --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (ΔΙΟΡΘΩΜΕΝΗ) ---
 def get_auto_analysis(symbol_ticker="SOL"):
   try:
-    # 1. Καθαρισμός του input: αφαιρούμε / και -, μετατρέπουμε σε κεφαλαία
+    # 1. Καθαρισμός του input
     raw = symbol_ticker.strip().upper().replace("/", "").replace("-", "")
 
-    # 2. Αφαίρεση κατάληξης USDT ή USD αν υπάρχει ήδη
     if raw.endswith("USDT"):
       raw = raw[:-4]
     elif raw.endswith("USD"):
       raw = raw[:-3]
 
-    # 3. Δημιουργία της σωστής μορφής για το yfinance (π.χ. SOL-USD)
     ticker_clean = f"{raw}-USD"
 
-    df_1h = yf.download(tickers=ticker_clean, period="7d", interval="1h")
-    df_4h = yf.download(tickers=ticker_clean, period="30d", interval="1h")
+    # 2. Κατέβασμα δεδομένων με auto_adjust=True
+    df_1h = yf.download(
+        tickers=ticker_clean, period="7d", interval="1h", auto_adjust=True
+    )
+    df_4h = yf.download(
+        tickers=ticker_clean, period="30d", interval="1h", auto_adjust=True
+    )
 
     if df_1h.empty:
       st.error(
@@ -187,26 +190,19 @@ def get_auto_analysis(symbol_ticker="SOL"):
       )
       return None
 
-    # Προσπέλαση τιμών με διαχείριση πιθανού MultiIndex
-    close_series = (
-        df_1h["Close"][ticker_clean]
-        if ticker_clean in df_1h["Close"]
-        else df_1h["Close"]
-    )
-    high_series = (
-        df_1h["High"][ticker_clean]
-        if ticker_clean in df_1h["High"]
-        else df_1h["High"]
-    )
-    low_series = (
-        df_1h["Low"][ticker_clean]
-        if ticker_clean in df_1h["Low"]
-        else df_1h["Low"]
-    )
+    # 3. Σωστή διαχείριση MultiIndex στήλων yfinance
+    if isinstance(df_1h.columns, pd.MultiIndex):
+      close_series = df_1h["Close"][ticker_clean]
+      high_series = df_1h["High"][ticker_clean]
+      low_series = df_1h["Low"][ticker_clean]
+    else:
+      close_series = df_1h["Close"]
+      high_series = df_1h["High"]
+      low_series = df_1h["Low"]
 
-    close_1h = close_series.dropna().values.flatten().tolist()
-    high_1h = high_series.dropna().values.flatten().tolist()
-    low_1h = low_series.dropna().values.flatten().tolist()
+    close_1h = close_series.dropna().tolist()
+    high_1h = high_series.dropna().tolist()
+    low_1h = low_series.dropna().tolist()
 
     current_price = round(float(close_1h[-1]), 4)
     recent_high = round(float(max(high_1h[-24:])), 4)
@@ -217,13 +213,14 @@ def get_auto_analysis(symbol_ticker="SOL"):
     price_range = recent_high - recent_low
     fib_618 = round(recent_high - (price_range * 0.618), 4)
 
-    close_4h_series = (
-        df_4h["Close"][ticker_clean]
-        if ticker_clean in df_4h["Close"]
-        else df_4h["Close"]
-    )
+    # Διαχείριση 4H δεδομένων
+    if isinstance(df_4h.columns, pd.MultiIndex):
+      close_4h_series = df_4h["Close"][ticker_clean]
+    else:
+      close_4h_series = df_4h["Close"]
+
     df_4h_resampled = close_4h_series.resample("4h").last().dropna()
-    close_4h = df_4h_resampled.values.flatten().tolist()
+    close_4h = df_4h_resampled.tolist()
 
     sma50_4h = (
         sum(close_4h[-50:]) / 50 if len(close_4h) >= 50 else current_price
@@ -276,7 +273,6 @@ def get_auto_analysis(symbol_ticker="SOL"):
   except Exception as e:
     st.error(f"Error: {str(e)}")
   return None
-
 
 # --- 4. SOLANA ON-CHAIN / DEX SCANNER (DEXSCREENER API) ---
 def fetch_solana_dex_data(token_address):
