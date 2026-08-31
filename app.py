@@ -403,7 +403,7 @@ with tab_main:
                     """
 
           response = client.models.generate_content(
-              model="gemini-1.5-flash",
+              model="gemini-2.5-flash",
               contents=processed_images + [prompt],
               config=types.GenerateContentConfig(
                   temperature=0.2,
