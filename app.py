@@ -501,7 +501,53 @@ with tab_main:
     st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades.")
 
 with tab_dex:
+  with tab_dex:
   st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
+
+  def fetch_solana_dex_data(token_address):
+    try:
+      if not token_address or not token_address.strip():
+        return None
+
+      clean_address = token_address.strip()
+      url = f"https://api.dexscreener.com/latest/dex/tokens/{clean_address}"
+      headers = {"User-Agent": "Mozilla/5.0"}
+
+      res = requests.get(url, headers=headers, timeout=10)
+      if res.status_code == 200:
+        data = res.json()
+        pairs = data.get("pairs")
+
+        if pairs and isinstance(pairs, list) and len(pairs) > 0:
+          sol_pairs = [
+              p
+              for p in pairs
+              if isinstance(p, dict) and p.get("chainId") == "solana"
+          ]
+          best_pair = sol_pairs[0] if sol_pairs else pairs[0]
+
+          base_token = best_pair.get("baseToken", {}) or {}
+          liquidity = best_pair.get("liquidity", {}) or {}
+          volume = best_pair.get("volume", {}) or {}
+          txns = best_pair.get("txns", {}) or {}
+          h1_txns = txns.get("h1", {}) or {}
+
+          return {
+              "name": base_token.get("name", "N/A"),
+              "symbol": base_token.get("symbol", "N/A"),
+              "price": float(best_pair.get("priceUsd") or 0.0),
+              "liquidity": float(liquidity.get("usd") or 0.0),
+              "fdv": float(best_pair.get("fdv") or 0.0),
+              "volume_24h": float(volume.get("h24") or 0.0),
+              "buys_1h": int(h1_txns.get("buys") or 0),
+              "sells_1h": int(h1_txns.get("sells") or 0),
+              "dex": str(best_pair.get("dexId", "N/A")),
+              "url": str(best_pair.get("url", "#")),
+          }
+    except Exception as e:
+      st.error(f"Σφάλμα κατά την ανάκτηση DEX δεδομένων: {e}")
+    return None
+
   token_contract = st.text_input(
       "Εισάγαγε Contract Address από Solana Token:", value=""
   )
@@ -549,6 +595,9 @@ with tab_dex:
             st.session_state.saved_trades_list = load_trades_from_db()
             st.success("Το Solana token αποθηκεύτηκε στη βάση!")
         else:
-          st.error("Δεν βρέθηκαν δεδομένα.")
+          st.error(
+              "Δεν βρέθηκαν δεδομένα. Βεβαιώσου ότι το Contract Address είναι"
+              " σωστό."
+          )
     else:
       st.warning("Παρακαλώ συμπλήρωσε ένα σωστό Contract Address.")
