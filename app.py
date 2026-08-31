@@ -12,6 +12,8 @@ from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
+import yfinance as yf
 
 # --- ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ ---
 st.set_page_config(page_title="PANDA CRYPTO Analyzer", layout="wide")
@@ -21,7 +23,7 @@ LOG_FILE = "trade_log.csv"
 DB_FILE = "panda_analyzer.db"
 
 
-# --- 0. SQLite ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ ---
+# --- 1. SQLite ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ ---
 def init_db():
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
@@ -139,6 +141,7 @@ class TradeSetup(BaseModel):
   reason: str
 
 
+# --- 2. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ & ANΑΛΥΣΗ ---
 def clean_val(val):
   try:
     match = re.search(r"\d+\.?\d*", str(val))
@@ -293,7 +296,9 @@ def fetch_solana_dex_data(token_address):
 
       if pairs and isinstance(pairs, list) and len(pairs) > 0:
         sol_pairs = [
-            p for p in pairs if isinstance(p, dict) and p.get("chainId") == "solana"
+            p
+            for p in pairs
+            if isinstance(p, dict) and p.get("chainId") == "solana"
         ]
         best_pair = sol_pairs[0] if sol_pairs else pairs[0]
 
@@ -320,13 +325,14 @@ def fetch_solana_dex_data(token_address):
   return None
 
 
-# --- UI NAVIGATION ---
+# --- 3. UI USER INTERFACE ---
 tab_main, tab_dex = st.tabs(
     ["📊 CEX & Chart Analysis", "🪐 Solana DEX Scanner"]
 )
 
 with tab_main:
   st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
+
   user_input = st.text_input(
       "Γράψε Ticker (π.χ. BTC, ETH, SOL, XRP):", value="SOL"
   )
@@ -338,6 +344,7 @@ with tab_main:
 
   if "current_analysis" in st.session_state:
     analysis = st.session_state.current_analysis
+
     st.write(f"**Νόμισμα:** {analysis['coin']}")
     st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
     st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
@@ -364,6 +371,9 @@ with tab_main:
         }
         save_trade_to_db(new_trade)
         st.session_state.saved_trades_list = load_trades_from_db()
+        pd.DataFrame(st.session_state.saved_trades_list).to_csv(
+            LOG_FILE, index=False
+        )
         st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε στη βάση!")
         st.rerun()
 
@@ -402,8 +412,9 @@ with tab_main:
                     Read the exact crypto pair symbol from the chart.
                     """
 
+          # ΕΔΩ ΕΓΙΝΕ Η ΑΛΛΑΓΗ ΣΤΟ ΝΕΟ ΜΟΝΤΕΛΟ:
           response = client.models.generate_content(
-              model="gemini-1.5-flash",  # <--- ΕΔΩ ΕΙΝΑΙ ΤΟ ΣΗΜΕΙΟ!
+              model="gemini-2.0-flash",
               contents=processed_images + [prompt],
               config=types.GenerateContentConfig(
                   temperature=0.2,
@@ -467,6 +478,9 @@ with tab_main:
       }
       save_trade_to_db(new_entry)
       st.session_state.saved_trades_list = load_trades_from_db()
+      pd.DataFrame(st.session_state.saved_trades_list).to_csv(
+          LOG_FILE, index=False
+      )
       st.session_state["parsed_trade"] = None
       st.success("Το trade αποθηκεύτηκε επιτυχώς!")
       st.rerun()
@@ -502,6 +516,9 @@ with tab_main:
         if raw_id.isdigit():
           delete_trade_from_db(int(raw_id))
         st.session_state.saved_trades_list = load_trades_from_db()
+        pd.DataFrame(st.session_state.saved_trades_list).to_csv(
+            LOG_FILE, index=False
+        )
         st.success("Το trade διαγράφηκε!")
         st.rerun()
 
@@ -567,6 +584,9 @@ with tab_dex:
             st.session_state.saved_trades_list = load_trades_from_db()
             st.success("Το Solana token αποθηκεύτηκε στη βάση!")
         else:
-          st.error("Δεν βρέθηκαν δεδομένα για το συγκεκριμένο Token Contract.")
+          st.error(
+              "Δεν βρέθηκαν δεδομένα. Βεβαιώσου ότι το Contract Address είναι"
+              " σωστό."
+          )
     else:
       st.warning("Παρακαλώ συμπλήρωσε ένα σωστό Contract Address.")
