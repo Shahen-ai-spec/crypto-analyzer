@@ -500,6 +500,7 @@ with tab_main:
   else:
     st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades.")
 
+  
   with tab_dex:
     st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
 
