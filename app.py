@@ -502,7 +502,7 @@ with tab_main:
 
   
   with tab_dex:
-    st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
+  st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
 
   def fetch_solana_dex_data(token_address):
     try:
