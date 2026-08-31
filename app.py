@@ -414,7 +414,7 @@ with tab_main:
 
           # ΕΔΩ ΕΓΙΝΕ Η ΑΛΛΑΓΗ ΣΤΟ ΝΕΟ ΜΟΝΤΕΛΟ:
           response = client.models.generate_content(
-              model="gemini-2.0-flash",
+              model = 'gemini-3.6-flash'
               contents=processed_images + [prompt],
               config=types.GenerateContentConfig(
                   temperature=0.2,
