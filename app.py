@@ -12,8 +12,6 @@ from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
 import requests
 import streamlit as st
-import streamlit.components.v1 as components
-import yfinance as yf
 
 # --- ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ ---
 st.set_page_config(page_title="PANDA CRYPTO Analyzer", layout="wide")
@@ -162,17 +160,14 @@ def calculate_rsi(prices, period=14):
   return rsi.iloc[-1]
 
 
-# --- ΑΥΤΟΜΑΤΗ ΑΝΑΛΥΣΗ (BINANCE API + FALLBACK) ---
 def get_auto_analysis(symbol_ticker="SOL"):
   try:
-    # 1. Καθαρισμός και χαρτογράφηση Symbol σε CoinGecko ID
     raw = symbol_ticker.strip().lower().replace("/", "").replace("-", "")
     if raw.endswith("usdt") or raw.endswith("usdc"):
       raw = raw[:-4]
     elif raw.endswith("usd"):
       raw = raw[:-3]
 
-    # Crypto ID Mapping για τα δημοφιλή νομίσματα
     crypto_map = {
         "sol": "solana",
         "btc": "bitcoin",
@@ -185,10 +180,8 @@ def get_auto_analysis(symbol_ticker="SOL"):
         "sui": "sui",
         "near": "near",
     }
-
     coin_id = crypto_map.get(raw, raw)
 
-    # 2. Κλήση CoinGecko API (7 ημέρες ωριαίων/ημερήσιων δεδομένων)
     url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=7"
     headers = {"User-Agent": "Mozilla/5.0"}
     res = requests.get(url, headers=headers, timeout=10)
@@ -200,7 +193,6 @@ def get_auto_analysis(symbol_ticker="SOL"):
       if prices:
         close_1h = [point[1] for point in prices]
 
-    # Fallback σε Binance αν αποτύχει το CoinGecko
     if not close_1h:
       clean_symbol = f"{raw.upper()}USDT"
       url_b = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval=1h&limit=168"
@@ -210,15 +202,10 @@ def get_auto_analysis(symbol_ticker="SOL"):
         if isinstance(data_b, list) and len(data_b) > 0:
           close_1h = [float(candle[4]) for candle in data_b]
 
-    # Έλεγχος αν βρέθηκαν δεδομένα
     if not close_1h or len(close_1h) < 15:
-      st.error(
-          f"Δεν βρέθηκαν επαρκή δεδομένα για το '{symbol_ticker}'. Δοκίμασε"
-          " ξανά σε λίγο."
-      )
+      st.error(f"Δεν βρέθηκαν επαρκή δεδομένα για το '{symbol_ticker}'.")
       return None
 
-    # 3. Υπολογισμοί Τεχνικής Ανάλυσης
     current_price = round(float(close_1h[-1]), 4)
     recent_high = (
         round(float(max(close_1h[-24:])), 4)
@@ -232,8 +219,6 @@ def get_auto_analysis(symbol_ticker="SOL"):
     )
 
     rsi_1h = round(calculate_rsi(close_1h, 14), 1)
-
-    # Υπολογισμός 4H Trend (δείγμα ανά 4 στοιχεία)
     close_4h = close_1h[::4]
     rsi_4h = (
         round(calculate_rsi(close_4h, 14), 1) if len(close_4h) > 14 else rsi_1h
@@ -287,10 +272,54 @@ def get_auto_analysis(symbol_ticker="SOL"):
         "trend_4h": trend_4h,
         "fib_618": fib_618,
     }
-
   except Exception as e:
     st.error(f"Σφάλμα κατά την ανάλυση: {str(e)}")
     return None
+
+
+def fetch_solana_dex_data(token_address):
+  try:
+    if not token_address or not token_address.strip():
+      return None
+
+    clean_address = token_address.strip()
+    url = f"https://api.dexscreener.com/latest/dex/tokens/{clean_address}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    res = requests.get(url, headers=headers, timeout=10)
+    if res.status_code == 200:
+      data = res.json()
+      pairs = data.get("pairs")
+
+      if pairs and isinstance(pairs, list) and len(pairs) > 0:
+        sol_pairs = [
+            p for p in pairs if isinstance(p, dict) and p.get("chainId") == "solana"
+        ]
+        best_pair = sol_pairs[0] if sol_pairs else pairs[0]
+
+        base_token = best_pair.get("baseToken", {}) or {}
+        liquidity = best_pair.get("liquidity", {}) or {}
+        volume = best_pair.get("volume", {}) or {}
+        txns = best_pair.get("txns", {}) or {}
+        h1_txns = txns.get("h1", {}) or {}
+
+        return {
+            "name": base_token.get("name", "N/A"),
+            "symbol": base_token.get("symbol", "N/A"),
+            "price": float(best_pair.get("priceUsd") or 0.0),
+            "liquidity": float(liquidity.get("usd") or 0.0),
+            "fdv": float(best_pair.get("fdv") or 0.0),
+            "volume_24h": float(volume.get("h24") or 0.0),
+            "buys_1h": int(h1_txns.get("buys") or 0),
+            "sells_1h": int(h1_txns.get("sells") or 0),
+            "dex": str(best_pair.get("dexId", "N/A")),
+            "url": str(best_pair.get("url", "#")),
+        }
+  except Exception as e:
+    st.error(f"Σφάλμα DEX: {e}")
+  return None
+
+
 # --- UI NAVIGATION ---
 tab_main, tab_dex = st.tabs(
     ["📊 CEX & Chart Analysis", "🪐 Solana DEX Scanner"]
@@ -298,7 +327,6 @@ tab_main, tab_dex = st.tabs(
 
 with tab_main:
   st.subheader("🤖 Αυτόματη Τεχνική Ανάλυση (Live)")
-
   user_input = st.text_input(
       "Γράψε Ticker (π.χ. BTC, ETH, SOL, XRP):", value="SOL"
   )
@@ -310,7 +338,6 @@ with tab_main:
 
   if "current_analysis" in st.session_state:
     analysis = st.session_state.current_analysis
-
     st.write(f"**Νόμισμα:** {analysis['coin']}")
     st.write(f"**Τρέχουσα Τιμή:** ${analysis['price']}")
     st.write(f"**4H Macro Τάση:** {analysis['trend_4h']}")
@@ -337,9 +364,6 @@ with tab_main:
         }
         save_trade_to_db(new_trade)
         st.session_state.saved_trades_list = load_trades_from_db()
-        pd.DataFrame(st.session_state.saved_trades_list).to_csv(
-            LOG_FILE, index=False
-        )
         st.success(f"Το trade για {analysis['coin']} αποθηκεύτηκε στη βάση!")
         st.rerun()
 
@@ -443,9 +467,6 @@ with tab_main:
       }
       save_trade_to_db(new_entry)
       st.session_state.saved_trades_list = load_trades_from_db()
-      pd.DataFrame(st.session_state.saved_trades_list).to_csv(
-          LOG_FILE, index=False
-      )
       st.session_state["parsed_trade"] = None
       st.success("Το trade αποθηκεύτηκε επιτυχώς!")
       st.rerun()
@@ -481,9 +502,6 @@ with tab_main:
         if raw_id.isdigit():
           delete_trade_from_db(int(raw_id))
         st.session_state.saved_trades_list = load_trades_from_db()
-        pd.DataFrame(st.session_state.saved_trades_list).to_csv(
-            LOG_FILE, index=False
-        )
         st.success("Το trade διαγράφηκε!")
         st.rerun()
 
@@ -500,54 +518,8 @@ with tab_main:
   else:
     st.info("💡 Δεν υπάρχουν ακόμα αποθηκευμένα trades.")
 
-  
-  with tab_dex:
-    st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
-
-  def fetch_solana_dex_data(token_address):
-    try:
-      if not token_address or not token_address.strip():
-        return None
-
-      clean_address = token_address.strip()
-      url = f"https://api.dexscreener.com/latest/dex/tokens/{clean_address}"
-      headers = {"User-Agent": "Mozilla/5.0"}
-
-      res = requests.get(url, headers=headers, timeout=10)
-      if res.status_code == 200:
-        data = res.json()
-        pairs = data.get("pairs")
-
-        if pairs and isinstance(pairs, list) and len(pairs) > 0:
-          sol_pairs = [
-              p
-              for p in pairs
-              if isinstance(p, dict) and p.get("chainId") == "solana"
-          ]
-          best_pair = sol_pairs[0] if sol_pairs else pairs[0]
-
-          base_token = best_pair.get("baseToken", {}) or {}
-          liquidity = best_pair.get("liquidity", {}) or {}
-          volume = best_pair.get("volume", {}) or {}
-          txns = best_pair.get("txns", {}) or {}
-          h1_txns = txns.get("h1", {}) or {}
-
-          return {
-              "name": base_token.get("name", "N/A"),
-              "symbol": base_token.get("symbol", "N/A"),
-              "price": float(best_pair.get("priceUsd") or 0.0),
-              "liquidity": float(liquidity.get("usd") or 0.0),
-              "fdv": float(best_pair.get("fdv") or 0.0),
-              "volume_24h": float(volume.get("h24") or 0.0),
-              "buys_1h": int(h1_txns.get("buys") or 0),
-              "sells_1h": int(h1_txns.get("sells") or 0),
-              "dex": str(best_pair.get("dexId", "N/A")),
-              "url": str(best_pair.get("url", "#")),
-          }
-    except Exception as e:
-      st.error(f"Σφάλμα κατά την ανάκτηση DEX δεδομένων: {e}")
-    return None
-
+with tab_dex:
+  st.subheader("🪐 Solana DEX & On-Chain Scanner (DexScreener)")
   token_contract = st.text_input(
       "Εισάγαγε Contract Address από Solana Token:", value=""
   )
@@ -595,9 +567,6 @@ with tab_main:
             st.session_state.saved_trades_list = load_trades_from_db()
             st.success("Το Solana token αποθηκεύτηκε στη βάση!")
         else:
-          st.error(
-              "Δεν βρέθηκαν δεδομένα. Βεβαιώσου ότι το Contract Address είναι"
-              " σωστό."
-          )
+          st.error("Δεν βρέθηκαν δεδομένα για το συγκεκριμένο Token Contract.")
     else:
       st.warning("Παρακαλώ συμπλήρωσε ένα σωστό Contract Address.")
